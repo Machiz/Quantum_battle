@@ -1,7 +1,6 @@
 /**
  * Cliente API y Simulador Cuántico Local (v_final.md)
- * Niebla de Radar Inicial: Todas las casillas se ven uniformes al inicio.
- * Revelación progresiva al medir casillas.
+ * Al fallar tiros (Agua |0⟩), la flota enemiga ejecuta un CONTRAATAQUE que quita puntaje y coherencia.
  */
 
 const API_BASE = 'http://localhost:8000';
@@ -18,9 +17,9 @@ const FLEET_NAMES = [
 ];
 
 const HINTS_MAP = {
-  1: "Pista Táctica: Para alcanzar los 450 pts mínimos requeridos en el Nivel 1, evita disparar a ciegas en casillas vacías. Enfócate en las casillas en Superposición (50%) para forzar el Colapso de Onda o activar Entrelazamiento CNOT y rematar Flotas Heridas (+250 pts).",
-  2: "Pista Táctica: En el tablero 8x8 con 5 flotas, explora el tablero para descubrir la flota HERIDA inicial (78% prob). Atácala para asegurar impacto y sumar bonus.",
-  3: "Pista Táctica: En el tablero 12x12 con 7 flotas, identifica rápidamente las flotas HERIDAS (78% prob) marcadas con fuego 🔥 conforme descubres el espacio probabilístico."
+  1: "Pista Táctica: Para alcanzar los 450 pts mínimos requeridos en el Nivel 1, evita fallar tiros que provoquen contraataques enemigos. Enfócate en las casillas en Superposición (50%) para forzar el Colapso de Onda o activar Entrelazamiento CNOT y rematar Flotas Heridas (+250 pts).",
+  2: "Pista Táctica: En el tablero 8x8 con 5 flotas, ¡evita los contraataques enemigos al fallar! Aprovecha las flotas en Superposición y HERIDAS (78% prob) para asegurar impactos.",
+  3: "Pista Táctica: En el tablero 12x12 con 7 flotas, los contraataques enemigos al fallar restan 75 Pts y 7.5% de Coherencia. Mide con extrema precisión."
 };
 
 export async function checkBackendStatus() {
@@ -86,7 +85,8 @@ export function createLocalQuantumState(level = '1', initialScore = 0) {
   let entangledPairsCount = 1;
   let hitPts = 200;
   let woundedHitPts = 250;
-  let missPenalty = 40;
+  let counterattackDamage = 50;
+  let coherenceLossOnMiss = 4.0;
   let targetScore = 450;
   let initialWoundedCount = 0;
 
@@ -101,7 +101,8 @@ export function createLocalQuantumState(level = '1', initialScore = 0) {
     entangledPairsCount = 2;
     hitPts = 150;
     woundedHitPts = 180;
-    missPenalty = 50;
+    counterattackDamage = 60;
+    coherenceLossOnMiss = 5.5;
     targetScore = 900;
     initialWoundedCount = 1;
   } else if (level === '3' || level === 'hard' || level === 3) {
@@ -115,7 +116,8 @@ export function createLocalQuantumState(level = '1', initialScore = 0) {
     entangledPairsCount = 3;
     hitPts = 100;
     woundedHitPts = 120;
-    missPenalty = 60;
+    counterattackDamage = 75;
+    coherenceLossOnMiss = 7.5;
     targetScore = 1400;
     initialWoundedCount = 2;
   }
@@ -208,6 +210,8 @@ export function createLocalQuantumState(level = '1', initialScore = 0) {
     pairsMade++;
   }
 
+  const discoveredFleets = fleetIds.length > 0 ? [fleetIds[0]] : [];
+
   const now = new Date().toLocaleTimeString('es-ES', { hour12: false });
   const eventLog = [
     { time: now, text: `🎮 Misión Iniciada (Simulador JS) - ${levelName}. Puntos Objetivo: ${targetScore} Pts.` }
@@ -224,7 +228,9 @@ export function createLocalQuantumState(level = '1', initialScore = 0) {
     total_ships: numShips,
     target_score: targetScore,
     hit_pts: hitPts,
-    miss_penalty: missPenalty,
+    miss_penalty: counterattackDamage,
+    counterattack_damage: counterattackDamage,
+    coherence_loss_on_miss: coherenceLossOnMiss,
     all_ships_destroyed: false,
     passed_score: initialScore >= targetScore,
     passed_game: false,
@@ -236,7 +242,7 @@ export function createLocalQuantumState(level = '1', initialScore = 0) {
     cells: Object.values(cells),
     fleets: Object.values(fleets),
     entangled_pairs: entangledPairs,
-    discovered_fleets: [],
+    discovered_fleets: discoveredFleets,
     event_log: eventLog
   };
 }
@@ -264,13 +270,14 @@ export function localMeasureCell(gameState, cellId) {
 
   const hitPts = gameState.hit_pts || (gameState.level_num === 1 ? 200 : (gameState.level_num === 2 ? 150 : 100));
   const woundedHitPts = gameState.level_num === 1 ? 250 : (gameState.level_num === 2 ? 180 : 120);
-  const missPenalty = gameState.miss_penalty || (gameState.level_num === 1 ? 40 : (gameState.level_num === 2 ? 50 : 60));
+  const counterattackDamage = gameState.counterattack_damage || (gameState.level_num === 1 ? 50 : (gameState.level_num === 2 ? 60 : 75));
+  const cohLoss = gameState.coherence_loss_on_miss || (gameState.level_num === 1 ? 4.0 : (gameState.level_num === 2 ? 5.5 : 7.5));
 
   if (!targetFleet) {
     cell.status = 'water';
-    newScore = Math.max(0, newScore - missPenalty);
-    newCoherence = Math.max(0.0, Number((newCoherence - 2.0).toFixed(1)));
-    newLog.unshift({ time: now, text: `🌊 Disparo en ${cellId}: AGUA. Casilla vacía. [-${missPenalty} pts]` });
+    newScore = Math.max(0, newScore - counterattackDamage);
+    newCoherence = Math.max(0.0, Number((newCoherence - cohLoss).toFixed(1)));
+    newLog.unshift({ time: now, text: `🌊 AGUA en ${cellId}. ⚠️ ¡CONTRAATAQUE ENEMIGO! Pulso EMP en respuesta. [-${counterattackDamage} Pts, -${cohLoss}% Coherencia]` });
 
     const allDestroyed = newShipsDestroyed >= gameState.total_ships;
     const passedScore = newScore >= gameState.target_score;
@@ -321,8 +328,8 @@ export function localMeasureCell(gameState, cellId) {
     }
   } else {
     cell.status = 'water';
-    newScore = Math.max(0, newScore - missPenalty);
-    newCoherence = Math.max(0.0, Number((newCoherence - 3.5).toFixed(1)));
+    newScore = Math.max(0, newScore - counterattackDamage);
+    newCoherence = Math.max(0.0, Number((newCoherence - cohLoss).toFixed(1)));
 
     const altTile = targetFleet.candidate_tiles.find(t => t !== cellId);
     if (altTile) {
@@ -330,9 +337,9 @@ export function localMeasureCell(gameState, cellId) {
       targetFleet.candidate_tiles = [altTile];
       targetFleet.secret_real_tile = altTile;
       targetFleet.prob_hit = 1.0;
-      newLog.unshift({ time: now, text: `🌊 AGUA en ${cellId}. 🔮 ¡COLAPSO DE SUPERPOSICIÓN! ${targetFleet.name} revelada con 100% de certeza en ${altTile}. [-${missPenalty} pts]` });
+      newLog.unshift({ time: now, text: `🌊 AGUA en ${cellId}. 🔮 Colapso: ${targetFleet.name} revelada en ${altTile}. ⚠️ ¡CONTRAATAQUE ENEMIGO! Disparo en respuesta. [-${counterattackDamage} Pts, -${cohLoss}% Coherencia]` });
     } else {
-      newLog.unshift({ time: now, text: `🌊 AGUA en ${cellId}. [-${missPenalty} pts]` });
+      newLog.unshift({ time: now, text: `🌊 AGUA en ${cellId}. ⚠️ ¡CONTRAATAQUE ENEMIGO! [-${counterattackDamage} Pts, -${cohLoss}% Coherencia]` });
     }
   }
 

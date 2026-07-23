@@ -6,10 +6,9 @@ import datetime
 
 class QiskitBattleEngine:
     """
-    Motor Cuántico para Batalla Naval Cuántica con Progresión y Niebla de Radar:
-    - Niebla de Radar Inicial: Todas las casillas se ven de color neutro idéntico al inicio.
-    - Revelación Dinámica: Al disparar a una casilla, se descubre la flota asociada,
-      colapsando su superposición o revelando sus entrelazamientos CNOT progresivamente.
+    Motor Cuántico para Batalla Naval Cuántica:
+    - Al fallar (Agua |0⟩), no se descuenta por estático número de errores. En su lugar, la flota enemiga
+      responde con un CONTRAATAQUE que daña la Coherencia y quita Puntaje directamente.
     """
 
     FLEET_NAMES = [
@@ -24,9 +23,9 @@ class QiskitBattleEngine:
     ]
 
     HINTS_MAP = {
-        1: "Pista Táctica: Para alcanzar los 450 pts mínimos requeridos en el Nivel 1, evita disparar a ciegas en casillas vacías. Enfócate en las casillas en Superposición (50%) para forzar el Colapso de Onda o activar Entrelazamiento CNOT y rematar Flotas Heridas (+250 pts).",
-        2: "Pista Táctica: En el tablero 8x8 con 5 flotas, explora el tablero para descubrir la flota HERIDA inicial (78% prob). Atácala para asegurar impacto y sumar bonus.",
-        3: "Pista Táctica: En el tablero 12x12 con 7 flotas, identifica rápidamente las flotas HERIDAS (78% prob) marcadas con fuego 🔥 conforme descubres el espacio probabilístico."
+        1: "Pista Táctica: Para alcanzar los 450 pts mínimos requeridos en el Nivel 1, evita fallar tiros que provoquen contraataques enemigos. Enfócate en las casillas en Superposición (50%) para forzar el Colapso de Onda o activar Entrelazamiento CNOT y rematar Flotas Heridas (+250 pts).",
+        2: "Pista Táctica: En el tablero 8x8 con 5 flotas, ¡evita los contraataques enemigos al fallar! Aprovecha las flotas en Superposición y HERIDAS (78% prob) para asegurar impactos.",
+        3: "Pista Táctica: En el tablero 12x12 con 7 flotas, los contraataques enemigos al fallar restan 75 Pts y 7.5% de Coherencia. Mide con extrema precisión."
     }
 
     def __init__(self, level=1):
@@ -53,7 +52,8 @@ class QiskitBattleEngine:
             self.entangled_pairs_count = 1
             self.hit_pts = 200
             self.wounded_hit_pts = 250
-            self.miss_penalty = 40
+            self.counterattack_damage = 50
+            self.coherence_loss_on_miss = 4.0
             self.target_score = 450
             self.initial_wounded_count = 0
         elif self.level_num == 2:
@@ -66,7 +66,8 @@ class QiskitBattleEngine:
             self.entangled_pairs_count = 2
             self.hit_pts = 150
             self.wounded_hit_pts = 180
-            self.miss_penalty = 50
+            self.counterattack_damage = 60
+            self.coherence_loss_on_miss = 5.5
             self.target_score = 900
             self.initial_wounded_count = 1
         else:
@@ -80,7 +81,8 @@ class QiskitBattleEngine:
             self.entangled_pairs_count = 3
             self.hit_pts = 100
             self.wounded_hit_pts = 120
-            self.miss_penalty = 60
+            self.counterattack_damage = 75
+            self.coherence_loss_on_miss = 7.5
             self.target_score = 1400
             self.initial_wounded_count = 2
 
@@ -105,10 +107,13 @@ class QiskitBattleEngine:
                     'candidate_fleets': []
                 }
 
-        self._generate_fleets()
+        fleet_ids = self._generate_fleets()
         self._setup_entanglements()
 
-        self.add_event(f"🎮 Misión Iniciada - {self.level_name}. Radar inicializado en modo sigilo.")
+        if fleet_ids:
+            self.discovered_fleets.add(fleet_ids[0])
+
+        self.add_event(f"🎮 Misión Iniciada - {self.level_name}. Puntaje Objetivo: {self.target_score} Pts.")
         return self.get_full_state()
 
     def _generate_fleets(self):
@@ -164,6 +169,8 @@ class QiskitBattleEngine:
             }
             fleet_ids.append(fleet_id)
 
+        return fleet_ids
+
     def _setup_entanglements(self):
         fleet_ids = list(self.fleets.keys())
         random.shuffle(fleet_ids)
@@ -204,11 +211,15 @@ class QiskitBattleEngine:
 
         self.turns += 1
 
+        # Si el disparo cae en casilla vacía -> CONTRAATAQUE ENEMIGO DRENA PUNTAJE Y COHERENCIA
         if not target_fleet:
             cell['status'] = 'water'
-            self.score = max(0, self.score - self.miss_penalty)
-            self.coherence = max(0.0, round(self.coherence - 2.0, 1))
-            self.add_event(f"🌊 Disparo en {cell_id}: AGUA (Casilla vacía). [-{self.miss_penalty} pts]")
+            damage = self.counterattack_damage
+            coh_loss = self.coherence_loss_on_miss
+            self.score = max(0, self.score - damage)
+            self.coherence = max(0.0, round(self.coherence - coh_loss, 1))
+            self.enemy_attacks_count += 1
+            self.add_event(f"🌊 AGUA en {cell_id}. ⚠️ ¡CONTRAATAQUE ENEMIGO! Pulso EMP en respuesta. [-{damage} Pts, -{coh_loss}% Coherencia]")
             return {
                 'success': True,
                 'is_hit': False,
@@ -216,7 +227,6 @@ class QiskitBattleEngine:
                 'state': self.get_full_state()
             }
 
-        # Marcar flota como descubierta por la acción del jugador
         self.discovered_fleets.add(target_fleet['id'])
 
         theta = target_fleet['circuit_theta']
@@ -240,7 +250,6 @@ class QiskitBattleEngine:
             self.score += pts_gained
             self.add_event(f"💥 ¡IMPACTO DIRECTO en {cell_id}! {target_fleet['name']} colapsó a Derribada |1⟩. [+{pts_gained} pts]")
 
-            # CNOT Propagation -> Desencadena entrelazamiento y descubre la flota pareja
             partner_id = target_fleet['entangled_with']
             if partner_id and self.fleets[partner_id]['status'] != 'destroyed':
                 partner = self.fleets[partner_id]
@@ -254,7 +263,7 @@ class QiskitBattleEngine:
                 partner['prob_hit'] = 0.78
                 partner['circuit_theta'] = new_theta
 
-                self.add_event(f"⚡ ENTLEZAMIENTO CNOT REVELADO: El colapso de {target_fleet['name']} provocó una rotación en {partner['name']}. ¡Flota parejada descubierta e inspirada HERIDA (P=78%)!")
+                self.add_event(f"⚡ ENTLEZAMIENTO CNOT REVELADO: El colapso de {target_fleet['name']} provocó una rotación en {partner['name']}. ¡Flota pareja descubierta en estado HERIDA (P=78%)!")
 
             return {
                 'success': True,
@@ -265,9 +274,14 @@ class QiskitBattleEngine:
             }
 
         else:
+            # === FALLO (AGUA |0⟩) -> COLAPSO DE SUPERPOSICIÓN Y CONTRAATAQUE ENEMIGO ===
             cell['status'] = 'water'
-            self.score = max(0, self.score - self.miss_penalty)
-            self.coherence = max(0.0, round(self.coherence - 3.5, 1))
+            damage = self.counterattack_damage
+            coh_loss = self.coherence_loss_on_miss
+
+            self.score = max(0, self.score - damage)
+            self.coherence = max(0.0, round(self.coherence - coh_loss, 1))
+            self.enemy_attacks_count += 1
 
             alt_tile = [t for t in target_fleet['candidate_tiles'] if t != cell_id]
 
@@ -279,9 +293,9 @@ class QiskitBattleEngine:
                 target_fleet['prob_hit'] = 1.0
                 target_fleet['circuit_theta'] = np.pi
 
-                self.add_event(f"🌊 AGUA en {cell_id}. 🔮 ¡COLAPSO DE SUPERPOSICIÓN! {target_fleet['name']} revelada con 100% de certeza en {confirmed_tile}. [-{self.miss_penalty} pts]")
+                self.add_event(f"🌊 AGUA en {cell_id}. 🔮 Colapso: {target_fleet['name']} revelada en {confirmed_tile}. ⚠️ ¡CONTRAATAQUE ENEMIGO! La flota disparó en respuesta. [-{damage} Pts, -{coh_loss}% Coherencia]")
             else:
-                self.add_event(f"🌊 AGUA en {cell_id}. [-{self.miss_penalty} pts]")
+                self.add_event(f"🌊 AGUA en {cell_id}. ⚠️ ¡CONTRAATAQUE ENEMIGO! [-{damage} Pts, -{coh_loss}% Coherencia]")
 
             return {
                 'success': True,
@@ -339,7 +353,9 @@ class QiskitBattleEngine:
             'total_ships': self.num_ships,
             'target_score': self.target_score,
             'hit_pts': self.hit_pts,
-            'miss_penalty': self.miss_penalty,
+            'miss_penalty': self.counterattack_damage,
+            'counterattack_damage': self.counterattack_damage,
+            'coherence_loss_on_miss': self.coherence_loss_on_miss,
             'all_ships_destroyed': all_destroyed,
             'passed_score': passed_score,
             'passed_game': passed_game,

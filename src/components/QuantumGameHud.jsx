@@ -25,13 +25,15 @@ export default function QuantumGameHud({ backendInfo }) {
   const initGame = async (lvl, keepScore = 0) => {
     setLoadingAction(true);
     const res = await fetchNewGame(lvl, keepScore);
-    if (res && res.state) {
-      setGameState(res.state);
-      setSelectedCellId(res.state.cells[0]?.id || 'A-00');
+    let state = res && res.state ? res.state : createLocalQuantumState(lvl, keepScore);
+    setGameState(state);
+    
+    // Seleccionar automáticamente la primera casilla candidata de la flota inicial revelada
+    const initialFleet = state.fleets?.find(f => state.discovered_fleets?.includes(f.id));
+    if (initialFleet && initialFleet.candidate_tiles.length > 0) {
+      setSelectedCellId(initialFleet.candidate_tiles[0]);
     } else {
-      const localState = createLocalQuantumState(lvl, keepScore);
-      setGameState(localState);
-      setSelectedCellId(localState.cells[0]?.id || 'A-00');
+      setSelectedCellId(state.cells[0]?.id || 'A-00');
     }
     setLoadingAction(false);
   };
@@ -206,7 +208,7 @@ export default function QuantumGameHud({ backendInfo }) {
       {/* Main Grid & Tactical Controls Section */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
-        {/* TABLERO DINÁMICO CON REVELACIÓN PROGRESIVA DE ENLAZAMIENTOS */}
+        {/* TABLERO DINÁMICO */}
         <div className="lg:col-span-7 bg-[#0b1329]/60 border border-slate-800 rounded-xl p-5 relative overflow-hidden backdrop-blur-sm">
           
           <div className="flex items-center justify-between mb-4">
@@ -240,7 +242,7 @@ export default function QuantumGameHud({ backendInfo }) {
               gridTemplateColumns: `repeat(${gameState.cols}, minmax(0, 1fr))`
             }}
           >
-            {/* SVG OVERLAY QUE SÓLO DIBUJA LÍNEAS PARA FLOTAS DESCUBIERTAS */}
+            {/* SVG OVERLAY QUE DIBUJA EXCLUSIVAMENTE LAS CASILLAS CANDIDATAS DE FLOTAS REVELADAS / AFECTADAS */}
             <svg className="absolute inset-0 pointer-events-none w-full h-full z-20 overflow-visible">
               <defs>
                 <filter id="glowCyan" x="-20%" y="-20%" width="140%" height="140%">
@@ -253,7 +255,7 @@ export default function QuantumGameHud({ backendInfo }) {
                 </filter>
               </defs>
 
-              {/* Dibujar superposición SÓLO para flotas descubiertas */}
+              {/* Dibujar superposición de casillas candidatas sólo para flotas descubiertas */}
               {gameState.fleets
                 .filter(f => f.status !== 'destroyed' && f.candidate_tiles.length === 2 && discoveredSet.has(f.id))
                 .map(f => {
@@ -281,33 +283,6 @@ export default function QuantumGameHud({ backendInfo }) {
                     </g>
                   );
                 })}
-
-              {/* Dibujar entrelazamiento CNOT SÓLO para flotas descubiertas */}
-              {gameState.entangled_pairs.map((pair, idx) => {
-                const fA = gameState.fleets.find(f => f.id === pair.fleet_a);
-                const fB = gameState.fleets.find(f => f.id === pair.fleet_b);
-                if (!fA || !fB || fA.status === 'destroyed' || fB.status === 'destroyed') return null;
-                if (!discoveredSet.has(fA.id) && !discoveredSet.has(fB.id)) return null;
-
-                const tileA = fA.candidate_tiles[0];
-                const tileB = fB.candidate_tiles[0];
-                const cA = gridCoords[tileA];
-                const cB = gridCoords[tileB];
-                if (!cA || !cB) return null;
-
-                return (
-                  <g key={`entangle_${idx}`}>
-                    <line 
-                      x1={cA.x} y1={cA.y} 
-                      x2={cB.x} y2={cB.y} 
-                      stroke="#f59e0b" 
-                      strokeWidth="2" 
-                      strokeDasharray="2 4" 
-                      className="opacity-80 animate-ping"
-                    />
-                  </g>
-                );
-              })}
             </svg>
 
             {gameState.cells.map((cell) => {
@@ -315,7 +290,6 @@ export default function QuantumGameHud({ backendInfo }) {
               const isWater = cell.status === 'water';
               const isHit = cell.status === 'hit';
 
-              // Buscar flotas asociadas a esta casilla que YA HAYA SIDO DESCUBIERTAS
               const candidateFleets = gameState.fleets.filter(
                 f => f.status !== 'destroyed' && f.candidate_tiles.includes(cell.id) && discoveredSet.has(f.id)
               );
@@ -406,7 +380,7 @@ export default function QuantumGameHud({ backendInfo }) {
               </div>
             ) : (
               <p className="text-xs text-slate-400 italic bg-[#050b14] p-3 rounded-lg border border-slate-800">
-                Casilla cubierta por la niebla de radar. Dispara para escanear la presencia cuántica de flotas o colapsar la superposición.
+                Casilla en niebla de radar. Disparar aquí y fallar provocará un <strong className="text-red-400">Contraataque Enemigo</strong> que restará <strong className="text-red-400">-{gameState.counterattack_damage || gameState.miss_penalty} Pts</strong> y dañará tu Coherencia.
               </p>
             )}
 
