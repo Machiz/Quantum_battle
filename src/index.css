@@ -1,0 +1,121 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-bg-dark: #070a0f;
+  --color-hud-panel: #0d121c;
+  --color-hud-card: #121927;
+  --color-hud-border: #1b263b;
+  --color-cyan: #00e5ff;
+  --color-red: #ff3b5c;
+  --color-purple: #a855f7;
+  --color-amber: #f59e0b;
+}
+
+body {
+  background-color: #070a0f;
+  color: #e2e8f0;
+  font-family: 'Inter', sans-serif;
+  overflow-x: hidden;
+  background-image: 
+    radial-gradient(circle at 50% 0%, rgba(0, 229, 255, 0.08) 0%, transparent 60%),
+    radial-gradient(circle at 100% 100%, rgba(168, 85, 247, 0.05) 0%, transparent 50%),
+    radial-gradient(circle at 0% 100%, rgba(255, 59, 92, 0.05) 0%, transparent 50%);
+  background-attachment: fixed;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #090d14;
+}
+::-webkit-scrollbar-thumb {
+  background: #1b2838;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #00e5ff;
+}
+
+/* Sci-Fi HUD Container & Borders */
+.hud-border {
+  border: 1px solid rgba(0, 229, 255, 0.2);
+  box-shadow: 0 0 15px rgba(0, 229, 255, 0.05), inset 0 0 15px rgba(0, 229, 255, 0.03);
+}
+
+.hud-panel {
+  background: rgba(13, 18, 28, 0.85);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(27, 38, 59, 0.8);
+}
+
+.hud-card {
+  background: rgba(18, 25, 39, 0.7);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.hud-glow-cyan {
+  box-shadow: 0 0 20px rgba(0, 229, 255, 0.25);
+}
+
+.hud-glow-red {
+  box-shadow: 0 0 20px rgba(255, 59, 92, 0.3);
+}
+
+.hud-glow-purple {
+  box-shadow: 0 0 20px rgba(168, 85, 247, 0.3);
+}
+
+/* Grid Cell Styles */
+.cell-superposition {
+  background: rgba(0, 229, 255, 0.04);
+  border: 1px solid rgba(0, 229, 255, 0.3);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.cell-superposition:hover {
+  background: rgba(0, 229, 255, 0.15);
+  border-color: #00e5ff;
+  box-shadow: 0 0 16px rgba(0, 229, 255, 0.5);
+  transform: scale(1.04);
+  z-index: 10;
+}
+
+.cell-hit {
+  background: rgba(255, 59, 92, 0.25);
+  border: 1px solid #ff3b5c;
+  box-shadow: 0 0 15px rgba(255, 59, 92, 0.4);
+}
+
+.cell-water {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(30, 41, 59, 0.8);
+}
+
+.cell-entangled-glow {
+  animation: pulseEntanglement 2s infinite ease-in-out;
+}
+
+@keyframes pulseEntanglement {
+  0%, 100% {
+    border-color: rgba(168, 85, 247, 0.5);
+    box-shadow: 0 0 10px rgba(168, 85, 247, 0.3);
+  }
+  50% {
+    border-color: rgba(168, 85, 247, 1);
+    box-shadow: 0 0 22px rgba(168, 85, 247, 0.8);
+  }
+}
+
+/* Radar scanning grid background effect */
+.grid-bg-overlay {
+  background-image: 
+    linear-gradient(to right, rgba(0, 229, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 229, 255, 0.05) 1px, transparent 1px);
+  background-size: 32px 32px;
+}

@@ -4,7 +4,6 @@
 > Proyecto desarrollado para la Hackathon de **Quantum Hub Perú**.
 
 ---
-
 ## 📌 1. Visión General del Proyecto
 
 **Quantum Battleship: Operation Collapse** es un juego interactivo de rompecabezas táctico de 1 jugador que reinterpreta el clásico juego "Hundir la Flota" (*Battleship*) bajo los principios fundamentales de la mecánica cuántica.
@@ -21,35 +20,52 @@ Para hacer la teoría intuitiva y visual, cada concepto cuántico se traduce dir
 | :--- | :--- | :--- |
 | **Superposición** | **Barra de Probabilidad / Opacidad** | Las casillas no son "Agua" ni "Barco", sino un $\%$ (ej. $70\%$ Barco / $30\%$ Agua). |
 | **Interferencia** | **Indicador de Fase (Color)** | Usar compuertas manipula la fase (Azul $+$, Rojo $-$) para sumar o cancelar probabilidades. |
-| **Entrelazamiento** | **Líneas de Neón / Brillo Vinculado** | Dos o más casillas comparten un vínculo. Revelar una colapsa automáticamente la otra. |
+| **Entrelazamiento Parcial** | **Líneas de Neón / Brillo de Vínculo** | Medir una casilla altera la probabilidad de otra en cierto porcentaje, sin resolverla al 100%. |
 | **Medición / Colapso** | **Acción de Disparo ("Medir")** | Forzar al sistema a decidirse por un estado puro ($\vert{}0\rangle$ Agua o $\vert{}1\rangle$ Barco). |
 
 ---
 
-## 🎮 3. Estados de las Casillas (Qubits)
+## 🔗 3. Entrelazamiento Parcial: Profundidad Estratégica & Realismo
+
+En lugar de usar únicamente entrelazamiento máximo (donde medir A resuelve B de inmediato al 100%), el juego implementa **Entrelazamiento Parcial** ($\alpha\vert{}00\rangle + \beta\vert{}11\rangle$ con $\vert{}\alpha\vert{} \neq \vert{}\beta\vert{}$).
+
+### ¿Por qué aporta al juego?
+1. **Gestión de Riesgo y Toma de Decisiones:** Medir una casilla entrelazada no te regala la casilla vinculada, sino que eleva su probabilidad (ej. de $30\%$ a $85\%$). El jugador debe decidir: *¿dispara con $85\%$ de proba o usa un turno en aplicar una compuerta para acercarla al $99\%$?*
+2. **Curva de Dificultad Progresiva:**
+   * **Fácil / Tutorial:** Entrelazamiento Máximo (100% de correlación).
+   * **Medio:** Entrelazamiento Parcial Alto (80% / 20%).
+   * **Difícil:** Entrelazamiento Parcial Débil + Decoherencia (requiere combinar obligatoriamente con Interferencia).
+3. **Rigor Técnico:** Modela de forma más fiel el comportamiento de los qubits en hardware real expuestos a ruido ambiental.
+
+---
+
+## 🎮 4. Estados de las Casillas (Qubits)
 
 Durante la partida, cada casilla del tablero (Qubit) puede encontrarse en 4 estados claramente distinguibles:
 
 1. **$\vert{}0\rangle$ (Agua Confirmada):** Estado puro de $0\%$. Casilla azul oscura/limpia.
 2. **$\vert{}1\rangle$ (Barco Confirmado):** Estado puro de $100\%$. Muestra el icono de un barco activo.
 3. **$\alpha\vert{}0\rangle + \beta\vert{}1\rangle$ (Superposición):** Casilla translúcida con barra de porcentaje dinámico.
-4. **$\frac{\vert{}00\rangle + \vert{}11\rangle}{\sqrt{2}}$ (Entrelazamiento activo):** Conexión visual directa con otra casilla del tablero.
+4. **$\alpha\vert{}00\rangle + \beta\vert{}11\rangle$ (Entrelazamiento Parcial):** Casillas conectadas por brillo o líneas de neón vinculadas.
 
 ---
 
-## 🕹️ 4. Turno de Juego (Bucle de Gameplay)
+## 🕹️ 5. Turno de Juego (Bucle de Gameplay)
 
 En cada turno, el jugador tiene un número limitado de **Puntos de Energía** para interactuar con la cuadrícula:
+
 ┌─────────────────────────┐     ┌─────────────────────────┐     ┌─────────────────────────┐
-│   1. SUPERPOSICIÓN      │ ──> │   2. INTERFERENCIA      │ ──> │   3. MEDICIÓN / COLAPSO │
-│ Analizar probabilidades │     │  Aplicar Compuertas     │     │ Disparar y resolver     │
-│   iniciales del mapa.   │     │ (H, X, Z) para ajustar. │     │   casillas vinculadas.  │
+│   1. SUPERPOSICIÓN      │ ──> │   2. INTERFERENCIA      │ ──> │ 3. MEDICIÓN / COLAPSO   │
+│ Analizar probabilidades │     │  Aplicar Compuertas     │     │ Disparar y actualizar   │
+│   iniciales del mapa.   │     │ (H, X, Z) para ajustar. │     │  vínculos parciales.    │
 └─────────────────────────┘     └─────────────────────────┘     └─────────────────────────┘
+
+
 ### Acciones Disponibles:
 * **`Acción: MEDIR` (Disparo Clásico):**
   * Colapsa la casilla seleccionada.
-  * Si da **Impacto ($\vert{}1\rangle$)**, ganas puntos y descubres la ubicación.
-  * Si da **Agua ($\vert{}0\rangle$)**, el sistema recalcula y las probabilidades de las casillas restantes **aumentan** en tiempo real.
+  * Si da **Impacto ($\vert{}1\rangle$)**, descubres la ubicación. La casilla entrelazada ajusta dinámicamente su porcentaje de probabilidad.
+  * Si da **Agua ($\vert{}0\rangle$)**, el sistema recalcula y las probabilidades del resto del tablero se redistribuyen.
 * **`Acción: COMPUERTA H` (Hadamard / Superposición):**
   * Redistribuye y equilibra las probabilidades en casillas con baja certeza.
 * **`Acción: COMPUERTA X` (Pauli-X / Inversor NOT):**
@@ -57,17 +73,26 @@ En cada turno, el jugador tiene un número limitado de **Puntos de Energía** pa
 
 ---
 
-## 🏗️ 5. Arquitectura Técnica Sugerida
+## 🏗️ 6. Arquitectura Técnica & Código Qiskit
 
-El sistema utiliza un enfoque desacoplado donde la lógica cuántica pura se ejecuta simulada en backend Python y la experiencia visual responde en tiempo real en React.
+El sistema utiliza un enfoque desacoplado con backend en Python simulando los circuitos cuánticos mediante Qiskit y frontend en React.
 
-* **Frontend:** React.js / Next.js + Tailwind CSS (UI Reactiva con gráficos en Chart.js / Canvas).
-* **Backend:** Python con **FastAPI** o **Flask**.
-* **Motor Cuántico:** **Qiskit** o **Cirq** ejecutado localmente mediante simulación de `Statevector` / `AerSampler`.
+* **Frontend:** React.js / Next.js + Tailwind CSS.
+* **Backend:** Python con **FastAPI** / **Flask**.
+* **Motor Cuántico:** **Qiskit** (uso de rotaciones $RY(\theta)$ + $CX$ para entrelazamiento parcial).
 
-### Flujo de Datos (API Endpoint Example):
-1. **Frontend Request:** `POST /api/apply-gate { casilla: "A1", gate: "X" }`
-2. **Backend Processing (Qiskit):**
-   ```python
-   qc.x(0) # Aplica Pauli-X al qubit de la casilla A1
-   new_statevector = Statevector.from_instruction(qc)
+### Implementación en Qiskit (Backend Snippet):
+```python
+import numpy as np
+from qiskit import QuantumCircuit
+
+# Circuito para entrelazamiento parcial entre 2 qubits (casillas)
+qc = QuantumCircuit(2)
+
+# Rotación parametrizada theta para controlar el grado de entrelazamiento
+# θ = pi/4 genera un entrelazamiento parcial (ej. ~85% / 15%)
+theta = np.pi / 4  
+qc.ry(theta, 0)
+
+# Aplicar CNOT para vincular el Qubit 0 y Qubit 1
+qc.cx(0, 1)
