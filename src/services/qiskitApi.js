@@ -1,6 +1,9 @@
 /**
  * Cliente API y Simulador Cuántico Local (v_final.md)
- * Al fallar tiros (Agua |0⟩), la flota enemiga ejecuta un CONTRAATAQUE que quita puntaje y coherencia.
+ * El entrelazamiento CNOT se activa A PARTIR DEL NIVEL 2.
+ * Nivel 1 (0 pares entrelazados CNOT - Superposición Pura).
+ * Nivel 2 (2 pares entrelazados CNOT).
+ * Nivel 3 (4 pares entrelazados CNOT).
  */
 
 const API_BASE = 'http://localhost:8000';
@@ -13,13 +16,15 @@ const FLEET_NAMES = [
   "Nave Insignia Epsilon",
   "Acorazado Entrelazado Zeta",
   "Portaaviones Cuántico Eta",
-  "Corbeta CNOT Theta"
+  "Corbeta CNOT Theta",
+  "Cazador Pauli Iota",
+  "Dreadnought Bloch Kappa"
 ];
 
 const HINTS_MAP = {
-  1: "Pista Táctica: Para alcanzar los 450 pts mínimos requeridos en el Nivel 1, evita fallar tiros que provoquen contraataques enemigos. Enfócate en las casillas en Superposición (50%) para forzar el Colapso de Onda o activar Entrelazamiento CNOT y rematar Flotas Heridas (+250 pts).",
-  2: "Pista Táctica: En el tablero 8x8 con 5 flotas, ¡evita los contraataques enemigos al fallar! Aprovecha las flotas en Superposición y HERIDAS (78% prob) para asegurar impactos.",
-  3: "Pista Táctica: En el tablero 12x12 con 7 flotas, los contraataques enemigos al fallar restan 75 Pts y 7.5% de Coherencia. Mide con extrema precisión."
+  1: "Pista Táctica: En el Nivel 1 te enfocas en la Superposición Cuántica (50% prob) sin entrelazamientos. El Entrelazamiento CNOT se desbloquea en el Nivel 2.",
+  2: "Pista Táctica: ¡Entrelazamiento CNOT Desbloqueado en Nivel 2! Al derribar una flota enlazada CNOT, el colapso en cascada destruirá también a su pareja parejada.",
+  3: "Pista Táctica: En el Nivel 3 (Grid 12x12 con 4 pares CNOT), aprovecha la cascada CNOT para destruir ambas flotas enlazadas tras un solo acierto."
 };
 
 export async function checkBackendStatus() {
@@ -76,49 +81,49 @@ export async function measureCellApi(cellId) {
  */
 export function createLocalQuantumState(level = '1', initialScore = 0) {
   let levelNum = 1;
-  let levelName = "Nivel 1: Novato (Grid 6x6 • 3 Flotas)";
+  let levelName = "Nivel 1: Novato (Grid 6x6 • 5 Flotas • Superposición Pura)";
   let rows = 6;
   let cols = 6;
-  let numShips = 3;
+  let numShips = 5;
   let energy = 1500;
   let coherence = 100.0;
-  let entangledPairsCount = 1;
+  let entangledPairsCount = 0; // Sin entrelazamientos en Nivel 1
   let hitPts = 200;
   let woundedHitPts = 250;
   let counterattackDamage = 50;
   let coherenceLossOnMiss = 4.0;
-  let targetScore = 450;
+  let targetScore = 225;
   let initialWoundedCount = 0;
 
   if (level === '2' || level === 'medium' || level === 2) {
     levelNum = 2;
-    levelName = "Nivel 2: Táctico (Grid 8x8 • 5 Flotas)";
+    levelName = "Nivel 2: Táctico (Grid 8x8 • 7 Flotas • Entrelazamiento CNOT)";
     rows = 8;
     cols = 8;
-    numShips = 5;
+    numShips = 7;
     energy = 1240;
     coherence = 90.0;
-    entangledPairsCount = 2;
+    entangledPairsCount = 2; // Entrelazamiento desde Nivel 2
     hitPts = 150;
     woundedHitPts = 180;
     counterattackDamage = 60;
     coherenceLossOnMiss = 5.5;
-    targetScore = 900;
+    targetScore = 450;
     initialWoundedCount = 1;
   } else if (level === '3' || level === 'hard' || level === 3) {
     levelNum = 3;
-    levelName = "Nivel 3: Comandante (Grid 12x12 • 7 Flotas)";
+    levelName = "Nivel 3: Comandante (Grid 12x12 • 9 Flotas • Entrelazamiento Completo)";
     rows = 12;
     cols = 12;
-    numShips = 7;
+    numShips = 9;
     energy = 950;
     coherence = 80.0;
-    entangledPairsCount = 3;
+    entangledPairsCount = 4;
     hitPts = 100;
     woundedHitPts = 120;
     counterattackDamage = 75;
     coherenceLossOnMiss = 7.5;
-    targetScore = 1400;
+    targetScore = 700;
     initialWoundedCount = 2;
   }
 
@@ -189,31 +194,35 @@ export function createLocalQuantumState(level = '1', initialScore = 0) {
   }
 
   // Entrelazamientos
-  const shuffledFleetIds = [...fleetIds].sort(() => 0.5 - Math.random());
   const entangledPairs = [];
-  let pairsMade = 0;
+  if (entangledPairsCount > 0) {
+    const shuffledFleetIds = [...fleetIds].sort(() => 0.5 - Math.random());
+    let pairsMade = 0;
 
-  for (let i = 0; i < shuffledFleetIds.length - 1; i += 2) {
-    if (pairsMade >= entangledPairsCount) break;
-    const f1Id = shuffledFleetIds[i];
-    const f2Id = shuffledFleetIds[i + 1];
+    for (let i = 0; i < shuffledFleetIds.length - 1; i += 2) {
+      if (pairsMade >= entangledPairsCount) break;
+      const f1Id = shuffledFleetIds[i];
+      const f2Id = shuffledFleetIds[i + 1];
 
-    fleets[f1Id].entangled_with = f2Id;
-    fleets[f2Id].entangled_with = f1Id;
+      fleets[f1Id].entangled_with = f2Id;
+      fleets[f2Id].entangled_with = f1Id;
 
-    entangledPairs.push({
-      fleet_a: f1Id,
-      fleet_b: f2Id,
-      fleet_a_name: fleets[f1Id].name,
-      fleet_b_name: fleets[f2Id].name
-    });
-    pairsMade++;
+      entangledPairs.push({
+        fleet_a: f1Id,
+        fleet_b: f2Id,
+        fleet_a_name: fleets[f1Id].name,
+        fleet_b_name: fleets[f2Id].name
+      });
+      pairsMade++;
+    }
   }
 
-  const discoveredFleets = fleetIds.length > 0 ? [fleetIds[0]] : [];
+  const currentTurnFleet = fleets[fleetIds[0]];
+  const activeTurnTiles = currentTurnFleet ? currentTurnFleet.candidate_tiles : [];
 
   const now = new Date().toLocaleTimeString('es-ES', { hour12: false });
   const eventLog = [
+    { time: now, text: `📡 TURNO 1: Radar escaneó 2 casillas (${activeTurnTiles.join(' y ')}) para ${currentTurnFleet.name}.` },
     { time: now, text: `🎮 Misión Iniciada (Simulador JS) - ${levelName}. Puntos Objetivo: ${targetScore} Pts.` }
   ];
 
@@ -242,9 +251,23 @@ export function createLocalQuantumState(level = '1', initialScore = 0) {
     cells: Object.values(cells),
     fleets: Object.values(fleets),
     entangled_pairs: entangledPairs,
-    discovered_fleets: discoveredFleets,
+    revealed_entanglements: [],
+    current_turn_fleet_id: currentTurnFleet ? currentTurnFleet.id : null,
+    active_turn_tiles: activeTurnTiles,
+    active_fleet_index: 0,
     event_log: eventLog
   };
+}
+
+function getNextSuperpositionFleet(fleets, activeIndex) {
+  const activeFleets = Object.values(fleets).filter(
+    f => (f.status === 'superposition' || f.status === 'wounded') && f.candidate_tiles.length === 2
+  );
+  if (activeFleets.length > 0) {
+    const idx = activeIndex % activeFleets.length;
+    return activeFleets[idx];
+  }
+  return null;
 }
 
 /**
@@ -254,19 +277,23 @@ export function localMeasureCell(gameState, cellId) {
   const newCells = gameState.cells.map(c => ({ ...c }));
   const newFleets = gameState.fleets.map(f => ({ ...f, candidate_tiles: [...f.candidate_tiles] }));
   const cell = newCells.find(c => c.id === cellId);
-  const discoveredFleets = new Set(gameState.discovered_fleets || []);
+  const revealedEntanglements = [...(gameState.revealed_entanglements || [])];
 
   if (!cell || cell.status === 'water' || cell.status === 'hit') {
     return { success: false, message: 'Celda no válida o ya atacada' };
   }
 
-  let targetFleet = newFleets.find(f => f.status !== 'destroyed' && f.candidate_tiles.includes(cellId));
+  let targetFleet = newFleets.find(
+    f => (f.status === 'superposition' || f.status === 'wounded') && f.candidate_tiles.includes(cellId)
+  );
+
   const newLog = [...gameState.event_log];
   const now = new Date().toLocaleTimeString('es-ES', { hour12: false });
 
   let newScore = gameState.score;
   let newShipsDestroyed = gameState.ships_destroyed;
   let newCoherence = gameState.coherence;
+  let newActiveIndex = (gameState.active_fleet_index || 0) + 1;
 
   const hitPts = gameState.hit_pts || (gameState.level_num === 1 ? 200 : (gameState.level_num === 2 ? 150 : 100));
   const woundedHitPts = gameState.level_num === 1 ? 250 : (gameState.level_num === 2 ? 180 : 120);
@@ -277,9 +304,14 @@ export function localMeasureCell(gameState, cellId) {
     cell.status = 'water';
     newScore = Math.max(0, newScore - counterattackDamage);
     newCoherence = Math.max(0.0, Number((newCoherence - cohLoss).toFixed(1)));
-    newLog.unshift({ time: now, text: `🌊 AGUA en ${cellId}. ⚠️ ¡CONTRAATAQUE ENEMIGO! Pulso EMP en respuesta. [-${counterattackDamage} Pts, -${cohLoss}% Coherencia]` });
+    newLog.unshift({ time: now, text: `🌊 AGUA en ${cellId}. ⚠️ ¡CONTRAATAQUE ENEMIGO! [-${counterattackDamage} Pts]` });
 
-    const allDestroyed = newShipsDestroyed >= gameState.total_ships;
+    const nextFleet = getNextSuperpositionFleet(newFleets, newActiveIndex);
+    if (nextFleet) {
+      newLog.unshift({ time: now, text: `📡 TURNO ${gameState.turns + 2}: Radar presenta el siguiente enlace (${nextFleet.candidate_tiles.join(' y ')}) para ${nextFleet.name}.` });
+    }
+
+    const allResolved = newFleets.every(f => f.status === 'destroyed' || f.status === 'revealed');
     const passedScore = newScore >= gameState.target_score;
 
     return {
@@ -289,18 +321,20 @@ export function localMeasureCell(gameState, cellId) {
         turns: gameState.turns + 1,
         score: newScore,
         coherence: newCoherence,
-        all_ships_destroyed: allDestroyed,
+        all_ships_destroyed: allResolved,
         passed_score: passedScore,
-        passed_game: allDestroyed && passedScore,
-        failed_game: (allDestroyed && !passedScore) || (newCoherence <= 0),
-        discovered_fleets: Array.from(discoveredFleets),
+        passed_game: allResolved && passedScore,
+        failed_game: (allResolved && !passedScore) || (newCoherence <= 0),
+        current_turn_fleet_id: nextFleet ? nextFleet.id : null,
+        active_turn_tiles: nextFleet ? nextFleet.candidate_tiles : [],
+        active_fleet_index: newActiveIndex,
+        revealed_entanglements: revealedEntanglements,
         cells: newCells,
+        fleets: newFleets,
         event_log: newLog
       }
     };
   }
-
-  discoveredFleets.add(targetFleet.id);
 
   const isRealLocation = (cellId === targetFleet.secret_real_tile);
   const probHit = targetFleet.prob_hit;
@@ -315,15 +349,34 @@ export function localMeasureCell(gameState, cellId) {
     newShipsDestroyed += 1;
     const ptsGained = wasWounded ? woundedHitPts : hitPts;
     newScore += ptsGained;
-    newLog.unshift({ time: now, text: `💥 ¡IMPACTO DIRECTO en ${cellId}! La ${targetFleet.name} colapsó a Derribada |1⟩. [+{ptsGained} pts]` });
+    newLog.unshift({ time: now, text: `💥 ¡ACIERTO DIRECTO en ${cellId}! ${targetFleet.name} colapsó a Derribada |1⟩. [+{ptsGained} pts]` });
 
     if (targetFleet.entangled_with) {
       const partner = newFleets.find(f => f.id === targetFleet.entangled_with);
       if (partner && partner.status !== 'destroyed') {
-        partner.status = 'wounded';
-        partner.prob_hit = 0.78;
-        discoveredFleets.add(partner.id);
-        newLog.unshift({ time: now, text: `⚡ ENTLEZAMIENTO CNOT: El colapso de ${targetFleet.name} provocó una rotación en ${partner.name}. ¡Flota entrelazada ahora está HERIDA (P=78%)!` });
+        const partnerWasWounded = (partner.status === 'wounded');
+        partner.status = 'destroyed';
+        partner.prob_hit = 1.0;
+        newShipsDestroyed += 1;
+
+        const partnerPts = partnerWasWounded ? woundedHitPts : hitPts;
+        newScore += partnerPts;
+
+        const partnerTile = partner.secret_real_tile;
+        const partnerCell = newCells.find(c => c.id === partnerTile);
+        if (partnerCell) {
+          partnerCell.status = 'hit';
+        }
+
+        revealedEntanglements.push({
+          tile_a: cellId,
+          tile_b: partnerTile,
+          fleet_a_id: targetFleet.id,
+          fleet_b_id: partner.id,
+          fleet_a_name: targetFleet.name,
+          fleet_b_name: partner.name
+        });
+        newLog.unshift({ time: now, text: `⚡ ¡COLAPSO CNOT EN CASCADA! El derribo de ${targetFleet.name} destruyó instantáneamente a ${partner.name} en ${partnerTile} por entrelazamiento. [+{partnerPts} Pts Bonus]` });
       }
     }
   } else {
@@ -337,13 +390,18 @@ export function localMeasureCell(gameState, cellId) {
       targetFleet.candidate_tiles = [altTile];
       targetFleet.secret_real_tile = altTile;
       targetFleet.prob_hit = 1.0;
-      newLog.unshift({ time: now, text: `🌊 AGUA en ${cellId}. 🔮 Colapso: ${targetFleet.name} revelada en ${altTile}. ⚠️ ¡CONTRAATAQUE ENEMIGO! Disparo en respuesta. [-${counterattackDamage} Pts, -${cohLoss}% Coherencia]` });
+      newLog.unshift({ time: now, text: `🌊 FALLO en ${cellId}. 🔮 BARCO REVELADO EN ${altTile} (Casilla deshabilitada). ⚠️ ¡CONTRAATAQUE ENEMIGO! [-${counterattackDamage} Pts]` });
     } else {
-      newLog.unshift({ time: now, text: `🌊 AGUA en ${cellId}. ⚠️ ¡CONTRAATAQUE ENEMIGO! [-${counterattackDamage} Pts, -${cohLoss}% Coherencia]` });
+      newLog.unshift({ time: now, text: `🌊 FALLO en ${cellId}. ⚠️ ¡CONTRAATAQUE ENEMIGO! [-${counterattackDamage} Pts]` });
     }
   }
 
-  const allDestroyed = newShipsDestroyed >= gameState.total_ships;
+  const nextFleet = getNextSuperpositionFleet(newFleets, newActiveIndex);
+  if (nextFleet && nextFleet.candidate_tiles) {
+    newLog.unshift({ time: now, text: `📡 TURNO ${gameState.turns + 2}: Radar presenta el siguiente enlace (${nextFleet.candidate_tiles.join(' y ')}) para ${nextFleet.name}.` });
+  }
+
+  const allResolved = newFleets.every(f => f.status === 'destroyed' || f.status === 'revealed');
   const passedScore = newScore >= gameState.target_score;
 
   return {
@@ -354,11 +412,14 @@ export function localMeasureCell(gameState, cellId) {
       score: newScore,
       ships_destroyed: newShipsDestroyed,
       coherence: newCoherence,
-      all_ships_destroyed: allDestroyed,
+      all_ships_destroyed: allResolved,
       passed_score: passedScore,
-      passed_game: allDestroyed && passedScore,
-      failed_game: (allDestroyed && !passedScore) || (newCoherence <= 0),
-      discovered_fleets: Array.from(discoveredFleets),
+      passed_game: allResolved && passedScore,
+      failed_game: (allResolved && !passedScore) || (newCoherence <= 0),
+      current_turn_fleet_id: nextFleet ? nextFleet.id : null,
+      active_turn_tiles: nextFleet ? nextFleet.candidate_tiles : [],
+      active_fleet_index: newActiveIndex,
+      revealed_entanglements: revealedEntanglements,
       cells: newCells,
       fleets: newFleets,
       event_log: newLog

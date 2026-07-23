@@ -2,13 +2,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Atom, Zap, Target, Shield, HelpCircle, Activity, RotateCcw, 
   CheckCircle2, AlertTriangle, Info, Play, Flame, Waves, Sparkles,
-  Crosshair, Radio, Eye, Lock, ArrowRight, RefreshCw, Trophy
+  Crosshair, Radio, Eye, Lock, ArrowRight, RefreshCw, Trophy, Home
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import QuantumOnboarding from './QuantumOnboarding';
 import { fetchNewGame, measureCellApi, createLocalQuantumState, localMeasureCell } from '../services/qiskitApi';
 
-export default function QuantumGameHud({ backendInfo }) {
+export default function QuantumGameHud({ backendInfo, onGoToLanding }) {
   const [showOnboarding, setShowOnboarding] = useState(true);
   const [gameState, setGameState] = useState(null);
   const [selectedCellId, setSelectedCellId] = useState('A-00');
@@ -28,10 +28,9 @@ export default function QuantumGameHud({ backendInfo }) {
     let state = res && res.state ? res.state : createLocalQuantumState(lvl, keepScore);
     setGameState(state);
     
-    // Seleccionar automáticamente la primera casilla candidata de la flota inicial revelada
-    const initialFleet = state.fleets?.find(f => state.discovered_fleets?.includes(f.id));
-    if (initialFleet && initialFleet.candidate_tiles.length > 0) {
-      setSelectedCellId(initialFleet.candidate_tiles[0]);
+    // Seleccionar automáticamente la primera casilla de las 2 del turno actual
+    if (state.active_turn_tiles && state.active_turn_tiles.length > 0) {
+      setSelectedCellId(state.active_turn_tiles[0]);
     } else {
       setSelectedCellId(state.cells[0]?.id || 'A-00');
     }
@@ -92,7 +91,7 @@ export default function QuantumGameHud({ backendInfo }) {
       <div className="min-h-screen bg-[#070a0f] flex items-center justify-center text-[#00e5ff] font-mono">
         <div className="flex flex-col items-center space-y-4">
           <Atom className="w-12 h-12 animate-spin text-[#00e5ff]" />
-          <span className="tracking-widest">CARGANDO TABLERO Y CIRCUITO QISKIT...</span>
+          <span className="tracking-widest">ESCANEAR RADAR CUÁNTICO QISKIT...</span>
         </div>
       </div>
     );
@@ -105,12 +104,21 @@ export default function QuantumGameHud({ backendInfo }) {
     setLoadingAction(true);
     const apiRes = await measureCellApi(targetId);
 
+    let newState = null;
     if (apiRes && apiRes.state) {
-      setGameState(apiRes.state);
+      newState = apiRes.state;
     } else {
       const localRes = localMeasureCell(gameState, targetId);
       if (localRes.success) {
-        setGameState(localRes.state);
+        newState = localRes.state;
+      }
+    }
+
+    if (newState) {
+      setGameState(newState);
+      // Auto-seleccionar la primera casilla de las 2 nuevas casillas del siguiente turno
+      if (newState.active_turn_tiles && newState.active_turn_tiles.length > 0) {
+        setSelectedCellId(newState.active_turn_tiles[0]);
       }
     }
     setLoadingAction(false);
@@ -123,11 +131,8 @@ export default function QuantumGameHud({ backendInfo }) {
   };
 
   const selectedCell = gameState.cells.find(c => c.id === selectedCellId) || gameState.cells[0];
-  const discoveredSet = new Set(gameState.discovered_fleets || []);
-
-  const fleetsAtSelectedCell = gameState.fleets.filter(
-    f => f.status !== 'destroyed' && f.candidate_tiles.includes(selectedCellId)
-  );
+  const activeTurnTiles = gameState.active_turn_tiles || [];
+  const currentFleet = gameState.fleets.find(f => f.id === gameState.current_turn_fleet_id);
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
@@ -208,29 +213,25 @@ export default function QuantumGameHud({ backendInfo }) {
       {/* Main Grid & Tactical Controls Section */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
-        {/* TABLERO DINÁMICO */}
+        {/* TABLERO DINÁMICO POR TURNOS: MUESTRA 2 POSICIONES CANDIDATAS */}
         <div className="lg:col-span-7 bg-[#0b1329]/60 border border-slate-800 rounded-xl p-5 relative overflow-hidden backdrop-blur-sm">
           
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center space-x-2">
               <Crosshair className="w-5 h-5 text-[#00e5ff]" />
               <h2 className="text-base font-semibold text-slate-200">
-                ESPACIO DE PROBABILIDADES ({gameState.rows}x{gameState.cols})
+                POSICIONES EN SUPERPOSICIÓN - TURNO #{gameState.turns + 1}
               </h2>
             </div>
 
             <div className="flex items-center space-x-4 text-xs font-mono">
               <span className="flex items-center space-x-1 text-[#00e5ff]">
                 <span className="w-2.5 h-2.5 rounded-full bg-[#00e5ff] animate-ping inline-block"></span>
-                <span>Superposición (50%)</span>
-              </span>
-              <span className="flex items-center space-x-1 text-[#ff3b5c]">
-                <span className="w-2.5 h-2.5 rounded-full bg-[#ff3b5c] inline-block"></span>
-                <span>Herida (78%)</span>
+                <span>2 Opciónes Turno (50%)</span>
               </span>
               <span className="flex items-center space-x-1 text-[#38bdf8]">
                 <span className="w-2.5 h-2.5 rounded-full bg-[#38bdf8] inline-block"></span>
-                <span>Revelada (100%)</span>
+                <span>Barco Revelado (100%)</span>
               </span>
             </div>
           </div>
@@ -242,47 +243,64 @@ export default function QuantumGameHud({ backendInfo }) {
               gridTemplateColumns: `repeat(${gameState.cols}, minmax(0, 1fr))`
             }}
           >
-            {/* SVG OVERLAY QUE DIBUJA EXCLUSIVAMENTE LAS CASILLAS CANDIDATAS DE FLOTAS REVELADAS / AFECTADAS */}
+            {/* SVG OVERLAY: LÍNEA DE TURNO Y LÍNEAS DE ENTRELAZAMIENTO CNOT REVELADAS AL DAÑAR UN BARCO */}
             <svg className="absolute inset-0 pointer-events-none w-full h-full z-20 overflow-visible">
               <defs>
                 <filter id="glowCyan" x="-20%" y="-20%" width="140%" height="140%">
                   <feGaussianBlur stdDeviation="3" result="blur" />
                   <feComposite in="SourceGraphic" in2="blur" operator="over" />
                 </filter>
-                <filter id="glowRed" x="-20%" y="-20%" width="140%" height="140%">
+                <filter id="glowAmber" x="-20%" y="-20%" width="140%" height="140%">
                   <feGaussianBlur stdDeviation="4" result="blur" />
                   <feComposite in="SourceGraphic" in2="blur" operator="over" />
                 </filter>
               </defs>
 
-              {/* Dibujar superposición de casillas candidatas sólo para flotas descubiertas */}
-              {gameState.fleets
-                .filter(f => f.status !== 'destroyed' && f.candidate_tiles.length === 2 && discoveredSet.has(f.id))
-                .map(f => {
-                  const c1 = gridCoords[f.candidate_tiles[0]];
-                  const c2 = gridCoords[f.candidate_tiles[1]];
+              {/* Dibujar línea entre las 2 casillas candidatas del turno actual */}
+              {activeTurnTiles.length === 2 && (
+                (() => {
+                  const c1 = gridCoords[activeTurnTiles[0]];
+                  const c2 = gridCoords[activeTurnTiles[1]];
                   if (!c1 || !c2) return null;
-                  
-                  const isWounded = f.status === 'wounded';
-                  const strokeColor = isWounded ? "#ff3b5c" : "#00e5ff";
-                  const glowFilter = isWounded ? "url(#glowRed)" : "url(#glowCyan)";
-
                   return (
-                    <g key={`pair_${f.id}`}>
+                    <g key="turn_line">
                       <line 
                         x1={c1.x} y1={c1.y} 
                         x2={c2.x} y2={c2.y} 
-                        stroke={strokeColor} 
-                        strokeWidth={isWounded ? "3" : "2.5"} 
-                        strokeDasharray={isWounded ? "6 3" : "8 4"} 
-                        filter={glowFilter}
+                        stroke="#00e5ff" 
+                        strokeWidth="3" 
+                        strokeDasharray="6 3" 
+                        filter="url(#glowCyan)"
                         className="opacity-90 animate-pulse"
                       />
-                      <circle cx={c1.x} cy={c1.y} r={isWounded ? "4" : "3.5"} fill={strokeColor} />
-                      <circle cx={c2.x} cy={c2.y} r={isWounded ? "4" : "3.5"} fill={strokeColor} />
+                      <circle cx={c1.x} cy={c1.y} r="4" fill="#00e5ff" />
+                      <circle cx={c2.x} cy={c2.y} r="4" fill="#00e5ff" />
                     </g>
                   );
-                })}
+                })()
+              )}
+
+              {/* Dibujar enlaces CNOT revelados ÚNICAMENTE tras dañar un barco */}
+              {gameState.revealed_entanglements?.map((link, idx) => {
+                const cA = gridCoords[link.tile_a];
+                const cB = gridCoords[link.tile_b];
+                if (!cA || !cB) return null;
+                return (
+                  <g key={`cnot_link_${idx}`}>
+                    <line 
+                      x1={cA.x} y1={cA.y} 
+                      x2={cB.x} y2={cB.y} 
+                      stroke="#f59e0b" 
+                      strokeWidth="3" 
+                      strokeDasharray="3 3" 
+                      filter="url(#glowAmber)"
+                      className="opacity-90 animate-pulse"
+                    />
+                    <circle cx={cA.x} cy={cA.y} r="5" fill="#f59e0b" />
+                    <circle cx={cB.x} cy={cB.y} r="5" fill="#f59e0b" />
+                  </g>
+                );
+              })}
             </svg>
 
             {gameState.cells.map((cell) => {
@@ -290,29 +308,28 @@ export default function QuantumGameHud({ backendInfo }) {
               const isWater = cell.status === 'water';
               const isHit = cell.status === 'hit';
 
-              const candidateFleets = gameState.fleets.filter(
-                f => f.status !== 'destroyed' && f.candidate_tiles.includes(cell.id) && discoveredSet.has(f.id)
-              );
+              // Comprobar si esta casilla es una de las 2 casillas candidatas del turno actual
+              const isCandidateThisTurn = activeTurnTiles.includes(cell.id);
 
-              const hasSuperposition = candidateFleets.some(f => f.status === 'superposition');
-              const hasWounded = candidateFleets.some(f => f.status === 'wounded');
-              const hasRevealed = candidateFleets.some(f => f.status === 'revealed');
+              // Comprobar si hay alguna flota revelada (barco mostrado al fallar) en esta casilla
+              const isRevealedFleetHere = gameState.fleets.some(
+                f => f.status === 'revealed' && f.candidate_tiles.includes(cell.id)
+              );
 
               return (
                 <button
                   key={cell.id}
                   data-cell-id={cell.id}
                   onClick={() => setSelectedCellId(cell.id)}
-                  disabled={isWater || isHit || loadingAction}
+                  disabled={isWater || isHit || isRevealedFleetHere || loadingAction}
                   className={`
                     aspect-square rounded-md sm:rounded-lg border p-0.5 sm:p-1 flex flex-col items-center justify-between relative transition-all duration-200 font-mono text-[10px] sm:text-xs z-10
                     ${isSelected ? 'ring-2 ring-[#00e5ff] ring-offset-1 ring-offset-[#070a0f] !z-30' : ''}
                     ${isHit ? 'bg-red-950/80 border-red-500 text-red-300' : ''}
                     ${isWater ? 'bg-blue-950/40 border-blue-900/60 text-blue-400 opacity-60 cursor-not-allowed' : ''}
-                    ${!isHit && !isWater && hasRevealed ? 'bg-cyan-950/80 border-cyan-400 text-cyan-200 shadow-[0_0_18px_rgba(0,229,255,0.4)] animate-pulse' : ''}
-                    ${!isHit && !isWater && !hasRevealed && hasWounded ? 'bg-rose-950/80 border-red-500/90 text-rose-200 shadow-[0_0_15px_rgba(255,59,92,0.35)]' : ''}
-                    ${!isHit && !isWater && !hasRevealed && !hasWounded && hasSuperposition ? 'bg-cyan-950/30 border-cyan-600/70 text-cyan-200 hover:bg-cyan-900/40' : ''}
-                    ${!isHit && !isWater && candidateFleets.length === 0 ? 'bg-[#060c18] border-slate-800/80 text-slate-500 hover:border-slate-700 hover:bg-slate-900/40' : ''}
+                    ${!isHit && !isWater && isRevealedFleetHere ? 'bg-cyan-950/90 border-cyan-400 text-cyan-200 shadow-[0_0_20px_rgba(0,229,255,0.5)] animate-pulse' : ''}
+                    ${!isHit && !isWater && !isRevealedFleetHere && isCandidateThisTurn ? 'bg-cyan-950/40 border-cyan-400 text-cyan-200 shadow-[0_0_15px_rgba(0,229,255,0.3)] animate-pulse' : ''}
+                    ${!isHit && !isWater && !isRevealedFleetHere && !isCandidateThisTurn ? 'bg-[#060c18] border-slate-800/80 text-slate-500 hover:border-slate-700 hover:bg-slate-900/40' : ''}
                   `}
                 >
                   <span className="text-[9px] opacity-75 font-semibold leading-none">{cell.id}</span>
@@ -320,15 +337,15 @@ export default function QuantumGameHud({ backendInfo }) {
                   <div className="flex-1 flex items-center justify-center">
                     {isHit && <span className="text-sm sm:text-base">💥</span>}
                     {isWater && <Waves className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-400" />}
-                    {!isHit && !isWater && hasRevealed && (
-                      <Eye className="w-4 h-4 sm:w-5 sm:h-5 text-cyan-400 animate-bounce" />
+                    {!isHit && !isWater && isRevealedFleetHere && (
+                      <div className="flex flex-col items-center justify-center space-y-0.5 animate-bounce">
+                        <span className="text-base sm:text-lg">🚢</span>
+                        <span className="text-[8px] font-extrabold text-black bg-[#00e5ff] px-1 rounded shadow">BARCO</span>
+                      </div>
                     )}
-                    {!isHit && !isWater && !hasRevealed && hasWounded && (
-                      <Flame className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#ff3b5c] animate-pulse" />
-                    )}
-                    {!isHit && !isWater && !hasRevealed && !hasWounded && hasSuperposition && (
+                    {!isHit && !isWater && !isRevealedFleetHere && isCandidateThisTurn && (
                       <div className="relative flex items-center justify-center">
-                        <Atom className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#00e5ff] animate-spin" />
+                        <Atom className="w-4 h-4 sm:w-5 sm:h-5 text-[#00e5ff] animate-spin" />
                       </div>
                     )}
                   </div>
@@ -348,43 +365,42 @@ export default function QuantumGameHud({ backendInfo }) {
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center space-x-2">
                 <Target className="w-5 h-5 text-[#00e5ff]" />
-                <span className="font-semibold text-white">OBJETIVO: <strong className="text-[#00e5ff] font-mono text-lg">{selectedCellId}</strong></span>
+                <span className="font-semibold text-white">MARCAR CASILLA: <strong className="text-[#00e5ff] font-mono text-lg">{selectedCellId}</strong></span>
               </div>
 
               <span className="text-xs font-mono font-bold text-[#00e5ff] bg-cyan-950/60 border border-cyan-800 px-2.5 py-1 rounded-md">
-                +{gameState.hit_pts} Pts por Acierto
+                +{gameState.hit_pts} Pts Acierto
               </span>
             </div>
 
-            {/* Informacion sobre casillas de la flota descubierta */}
-            {fleetsAtSelectedCell.length > 0 && fleetsAtSelectedCell.some(f => discoveredSet.has(f.id)) ? (
-              <div className="space-y-2">
-                {fleetsAtSelectedCell.filter(f => discoveredSet.has(f.id)).map(fleet => (
-                  <div key={fleet.id} className="bg-[#050b14] border border-cyan-900/60 rounded-lg p-3 text-xs space-y-1">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-white text-sm">{fleet.name}</span>
-                      <span className={`px-2 py-0.5 rounded font-mono font-bold text-[11px] ${
-                        fleet.status === 'revealed' ? 'bg-cyan-500 text-black' :
-                        fleet.status === 'wounded' ? 'bg-[#ff3b5c] text-white' : 'bg-cyan-950 text-cyan-200 border border-cyan-700'
-                      }`}>
-                        {fleet.status === 'revealed' ? '100% REVELADA' :
-                         fleet.status === 'wounded' ? `HERIDA (${intPercent(fleet.prob_hit)})` : `SUPERPOSICIÓN (${intPercent(fleet.prob_hit)})`}
-                      </span>
-                    </div>
+            {/* Informacion sobre las 2 opciones de la flota del turno */}
+            {currentFleet ? (
+              <div className="bg-[#050b14] border border-cyan-900/60 rounded-lg p-3 text-xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-white text-sm">{currentFleet.name}</span>
+                  <span className={`px-2 py-0.5 rounded font-mono font-bold text-[11px] ${
+                    currentFleet.status === 'revealed' ? 'bg-cyan-500 text-black' : 'bg-cyan-950 text-cyan-200 border border-cyan-700'
+                  }`}>
+                    {currentFleet.status === 'revealed' ? 'BARCO MOSTRADO (100%)' : '2 POSICIONES (50%)'}
+                  </span>
+                </div>
 
-                    <p className="text-slate-400 text-[11px]">
-                      Ubicaciones: <strong className="text-cyan-300 font-mono">{fleet.candidate_tiles.join(' ó ')}</strong>
-                    </p>
-                  </div>
-                ))}
+                <p className="text-slate-300 text-[11px]">
+                  El radar indica 2 posiciones donde puede estar el barco: <strong className="text-[#00e5ff] font-mono">{activeTurnTiles.join('  ó  ')}</strong>
+                </p>
+                <p className="text-slate-400 text-[10px] italic border-t border-slate-900 pt-1">
+                  • Si aciertas: suma +{gameState.hit_pts} pts y aparecen 2 nuevas posiciones en el siguiente turno.
+                  <br />
+                  • Si fallas: se muestra el barco en la otra casilla y aparecen 2 nuevas posiciones.
+                </p>
               </div>
             ) : (
               <p className="text-xs text-slate-400 italic bg-[#050b14] p-3 rounded-lg border border-slate-800">
-                Casilla en niebla de radar. Disparar aquí y fallar provocará un <strong className="text-red-400">Contraataque Enemigo</strong> que restará <strong className="text-red-400">-{gameState.counterattack_damage || gameState.miss_penalty} Pts</strong> y dañará tu Coherencia.
+                Selecciona una casilla para realizar la medición.
               </p>
             )}
 
-            {/* BOTÓN DISPARAR */}
+            {/* BOTÓN MARCAR / MEDIR */}
             <button
               onClick={() => handleMeasure(selectedCellId)}
               disabled={selectedCell.status === 'water' || selectedCell.status === 'hit' || loadingAction || gameState.passed_game || gameState.failed_game}
@@ -397,7 +413,7 @@ export default function QuantumGameHud({ backendInfo }) {
               `}
             >
               <Crosshair className="w-5 h-5" />
-              <span>{loadingAction ? 'PROCESANDO QISKIT...' : `MEDIR / ESCANEAR CASILLA (${selectedCellId})`}</span>
+              <span>{loadingAction ? 'PROCESANDO TURNO...' : `MARCAR / MEDIR CASILLA (${selectedCellId})`}</span>
             </button>
 
           </div>
@@ -405,37 +421,35 @@ export default function QuantumGameHud({ backendInfo }) {
           {/* LISTA DE FLOTAS ENEMIGAS */}
           <div className="bg-[#0b1329]/60 border border-slate-800 rounded-xl p-4 space-y-3">
             <h3 className="text-xs font-bold text-slate-300 tracking-wider uppercase flex items-center justify-between">
-              <span>RADAR DE FLOTAS ({gameState.fleets.length})</span>
-              <span className="text-slate-500 font-mono font-normal">Estado Qubits</span>
+              <span>ESTADO DE FLOTAS ({gameState.fleets.length})</span>
+              <span className="text-slate-500 font-mono font-normal">Qubits</span>
             </h3>
 
             <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
               {gameState.fleets.map(fleet => {
-                const isDiscovered = discoveredSet.has(fleet.id);
+                const isCurrentTurn = fleet.id === gameState.current_turn_fleet_id;
                 return (
                   <div 
                     key={fleet.id}
                     className={`p-2.5 rounded-lg border transition text-xs space-y-1 ${
                       fleet.status === 'destroyed' ? 'bg-red-950/30 border-red-900/40 opacity-50' :
-                      !isDiscovered ? 'bg-[#050b14]/50 border-slate-900 text-slate-600' :
-                      fleet.status === 'revealed' ? 'bg-cyan-950/40 border-cyan-500/70' :
-                      fleet.status === 'wounded' ? 'bg-rose-950/50 border-rose-500/80' : 'bg-[#050b14] border-slate-800'
+                      isCurrentTurn ? 'bg-cyan-950/60 border-cyan-400 shadow-[0_0_12px_rgba(0,229,255,0.25)]' :
+                      fleet.status === 'revealed' ? 'bg-cyan-950/40 border-cyan-500/70' : 'bg-[#050b14] border-slate-800'
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className={`font-bold ${isDiscovered ? 'text-slate-100' : 'text-slate-500 italic'}`}>
-                        {isDiscovered ? fleet.name : `[Flota Oculta #${fleet.id.replace('fleet_', '')}]`}
+                      <span className="font-bold text-slate-100 flex items-center space-x-1.5">
+                        {isCurrentTurn && <span className="w-2 h-2 rounded-full bg-[#00e5ff] animate-ping"></span>}
+                        <span>{fleet.name}</span>
                       </span>
                       <span className={`px-2 py-0.5 rounded-full font-mono text-[10px] font-bold ${
                         fleet.status === 'destroyed' ? 'bg-red-900 text-red-200' :
-                        !isDiscovered ? 'bg-slate-900 text-slate-500 border border-slate-800' :
                         fleet.status === 'revealed' ? 'bg-cyan-500 text-black' :
-                        fleet.status === 'wounded' ? 'bg-[#ff3b5c] text-white' : 'bg-cyan-950 text-cyan-200 border border-cyan-700'
+                        isCurrentTurn ? 'bg-[#00e5ff] text-black' : 'bg-slate-800 text-slate-400'
                       }`}>
                         {fleet.status === 'destroyed' ? 'DERRIBADA |1⟩' :
-                         !isDiscovered ? 'EN SIGILO' :
-                         fleet.status === 'revealed' ? 'REVELADA (100%)' :
-                         fleet.status === 'wounded' ? 'HERIDA (78%)' : 'SUPERPOSICIÓN (50%)'}
+                         fleet.status === 'revealed' ? 'BARCO MOSTRADO' :
+                         isCurrentTurn ? 'EN TURNO (50%)' : 'EN RADAR'}
                       </span>
                     </div>
                   </div>
@@ -448,7 +462,7 @@ export default function QuantumGameHud({ backendInfo }) {
           <div className="bg-[#050b14] border border-slate-800 rounded-xl p-4 space-y-2">
             <h3 className="text-xs font-bold text-slate-400 tracking-wider uppercase flex items-center space-x-2">
               <Activity className="w-4 h-4 text-[#00e5ff]" />
-              <span>LOG DE MEDIDAS QISKIT</span>
+              <span>REGISTRO DE TURNOS Y MEDIDAS</span>
             </h3>
 
             <div className="h-32 overflow-y-auto space-y-1 font-mono text-[11px] pr-1">
@@ -483,17 +497,39 @@ export default function QuantumGameHud({ backendInfo }) {
             </div>
 
             {gameState.level_num < 3 ? (
-              <button
-                onClick={handleNextLevel}
-                className="w-full py-4 bg-gradient-to-r from-emerald-400 to-cyan-500 hover:from-emerald-500 hover:to-cyan-600 text-black font-extrabold text-sm tracking-wider uppercase rounded-xl transition flex items-center justify-center space-x-2 shadow-[0_0_25px_rgba(16,185,129,0.4)]"
-              >
-                <span>DESBLOQUEAR Y AVANZAR A NIVEL {gameState.level_num + 1}</span>
-                <ArrowRight className="w-5 h-5" />
-              </button>
+              <div className="space-y-3">
+                <button
+                  onClick={handleNextLevel}
+                  className="w-full py-4 bg-gradient-to-r from-emerald-400 to-cyan-500 hover:from-emerald-500 hover:to-cyan-600 text-black font-extrabold text-sm tracking-wider uppercase rounded-xl transition flex items-center justify-center space-x-2 shadow-[0_0_25px_rgba(16,185,129,0.4)]"
+                >
+                  <span>DESBLOQUEAR Y AVANZAR A NIVEL {gameState.level_num + 1}</span>
+                  <ArrowRight className="w-5 h-5" />
+                </button>
+
+                {onGoToLanding && (
+                  <button
+                    onClick={onGoToLanding}
+                    className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs tracking-wider uppercase rounded-xl transition flex items-center justify-center space-x-2 border border-slate-700"
+                  >
+                    <Home className="w-4 h-4 text-cyan-400" />
+                    <span>VOLVER A LA PÁGINA PRINCIPAL / LANDING</span>
+                  </button>
+                )}
+              </div>
             ) : (
-              <div className="p-4 bg-emerald-950/50 border border-emerald-600/60 rounded-xl">
-                <h3 className="text-emerald-300 font-bold text-base mb-1">🏆 ¡HAS COMPLETADO EL JUEGO COMPLETO!</h3>
-                <p className="text-slate-300 text-xs">Dominaste la Matriz 12x12 y los 3 principios de la Computación Cuántica.</p>
+              <div className="space-y-4">
+                <div className="p-4 bg-emerald-950/50 border border-emerald-600/60 rounded-xl space-y-1">
+                  <h3 className="text-emerald-300 font-bold text-base">🏆 ¡FELICIDADES! HAS COMPLETADO EL JUEGO COMPLETO</h3>
+                  <p className="text-slate-300 text-xs">Dominaste los 3 Niveles y la Computación Cuántica Qiskit.</p>
+                </div>
+
+                <button
+                  onClick={onGoToLanding || (() => window.location.reload())}
+                  className="w-full py-4 bg-gradient-to-r from-cyan-500 via-blue-600 to-purple-600 hover:from-cyan-400 hover:to-purple-700 text-white font-extrabold text-sm tracking-wider uppercase rounded-xl transition flex items-center justify-center space-x-2 shadow-[0_0_25px_rgba(0,229,255,0.4)] active:scale-[0.98]"
+                >
+                  <Home className="w-5 h-5" />
+                  <span>VOLVER A LA PÁGINA PRINCIPAL / LANDING</span>
+                </button>
               </div>
             )}
 
@@ -524,7 +560,7 @@ export default function QuantumGameHud({ backendInfo }) {
                 <span>CONSEJO CUÁNTICO DE REINTENTO</span>
               </div>
               <p className="text-slate-200 text-xs leading-relaxed italic">
-                "{gameState.tactical_hint || "Revisa las casillas en superposición y elimina flotas heridas para maximizar bonus."}"
+                "{gameState.tactical_hint || "Aprovecha las 2 casillas sugeridas por el radar en cada turno para maximizar aciertos."}"
               </p>
             </div>
 

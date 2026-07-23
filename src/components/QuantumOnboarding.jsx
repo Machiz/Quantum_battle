@@ -152,21 +152,16 @@ export default function QuantumOnboarding({ onStartGame }) {
             <Sparkles className="w-4 h-4 text-yellow-400" />
             <span>REGLAS DE REQUISITO DE PUNTAJE Y PROGRESIÓN</span>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 font-mono text-[11px] text-slate-300">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 font-mono text-[11px] text-slate-300">
             <div className="bg-black/40 p-2 rounded border border-indigo-900/60">
               <strong className="text-purple-300 block">Nivel 1 (Grid 6x6)</strong>
               3 Flotas • +200 pts/acierto<br />
-              <span className="text-yellow-400 font-bold">Mínimo: 450 Puntos</span>
+              <span className="text-yellow-400 font-bold">Mínimo: 300 Puntos</span>
             </div>
             <div className="bg-black/40 p-2 rounded border border-indigo-900/60">
               <strong className="text-amber-300 block">Nivel 2 (Grid 8x8)</strong>
               5 Flotas • +150 pts/acierto<br />
-              <span className="text-yellow-400 font-bold">Mínimo: 900 Puntos</span>
-            </div>
-            <div className="bg-black/40 p-2 rounded border border-indigo-900/60">
-              <strong className="text-cyan-300 block">Nivel 3 (Grid 12x12)</strong>
-              7 Flotas • +100 pts/acierto<br />
-              <span className="text-red-400 font-bold">-60 penalización por fallo</span>
+              <span className="text-yellow-400 font-bold">Mínimo: 700 Puntos</span>
             </div>
           </div>
         </div>

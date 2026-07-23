@@ -6,9 +6,11 @@ import datetime
 
 class QiskitBattleEngine:
     """
-    Motor Cuántico para Batalla Naval Cuántica:
-    - Al fallar (Agua |0⟩), no se descuenta por estático número de errores. En su lugar, la flota enemiga
-      responde con un CONTRAATAQUE que daña la Coherencia y quita Puntaje directamente.
+    Motor Cuántico para Batalla Naval Cuántica (v_final.md):
+    - El entrelazamiento CNOT se activa A PARTIR DEL NIVEL 2.
+      Nivel 1 (Sin entrelazamientos, solo superposición pura).
+      Nivel 2 (2 pares entrelazados CNOT).
+      Nivel 3 (4 pares entrelazados CNOT).
     """
 
     FLEET_NAMES = [
@@ -19,13 +21,15 @@ class QiskitBattleEngine:
         "Nave Insignia Epsilon",
         "Acorazado Entrelazado Zeta",
         "Portaaviones Cuántico Eta",
-        "Corbeta CNOT Theta"
+        "Corbeta CNOT Theta",
+        "Cazador Pauli Iota",
+        "Dreadnought Bloch Kappa"
     ]
 
     HINTS_MAP = {
-        1: "Pista Táctica: Para alcanzar los 450 pts mínimos requeridos en el Nivel 1, evita fallar tiros que provoquen contraataques enemigos. Enfócate en las casillas en Superposición (50%) para forzar el Colapso de Onda o activar Entrelazamiento CNOT y rematar Flotas Heridas (+250 pts).",
-        2: "Pista Táctica: En el tablero 8x8 con 5 flotas, ¡evita los contraataques enemigos al fallar! Aprovecha las flotas en Superposición y HERIDAS (78% prob) para asegurar impactos.",
-        3: "Pista Táctica: En el tablero 12x12 con 7 flotas, los contraataques enemigos al fallar restan 75 Pts y 7.5% de Coherencia. Mide con extrema precisión."
+        1: "Pista Táctica: En el Nivel 1 te enfocas en la Superposición Cuántica (50% prob) sin entrelazamientos. El Entrelazamiento CNOT se desbloquea en el Nivel 2.",
+        2: "Pista Táctica: ¡Entrelazamiento CNOT Desbloqueado en Nivel 2! Al derribar una flota enlazada CNOT, el colapso en cascada destruirá también a su pareja parejada.",
+        3: "Pista Táctica: En el Nivel 3 (Grid 12x12 con 4 pares CNOT), aprovecha la cascada CNOT para destruir ambas flotas enlazadas tras un solo acierto."
     }
 
     def __init__(self, level=1):
@@ -43,47 +47,47 @@ class QiskitBattleEngine:
             self.level_num = int(level)
 
         if self.level_num == 1:
-            self.level_name = "Nivel 1: Novato (Grid 6x6 • 3 Flotas)"
+            self.level_name = "Nivel 1: Novato (Grid 6x6 • 5 Flotas • Superposición Pura)"
             self.rows = 6
             self.cols = 6
-            self.num_ships = 3
+            self.num_ships = 5
             self.energy = 1500
             self.coherence = 100.0
-            self.entangled_pairs_count = 1
+            self.entangled_pairs_count = 0  # Sin entrelazamientos en Nivel 1
             self.hit_pts = 200
             self.wounded_hit_pts = 250
             self.counterattack_damage = 50
             self.coherence_loss_on_miss = 4.0
-            self.target_score = 450
+            self.target_score = 225
             self.initial_wounded_count = 0
         elif self.level_num == 2:
-            self.level_name = "Nivel 2: Táctico (Grid 8x8 • 5 Flotas)"
+            self.level_name = "Nivel 2: Táctico (Grid 8x8 • 7 Flotas • Entrelazamiento CNOT)"
             self.rows = 8
             self.cols = 8
-            self.num_ships = 5
+            self.num_ships = 7
             self.energy = 1240
             self.coherence = 90.0
-            self.entangled_pairs_count = 2
+            self.entangled_pairs_count = 2  # Entrelazamiento activo desde Nivel 2
             self.hit_pts = 150
             self.wounded_hit_pts = 180
             self.counterattack_damage = 60
             self.coherence_loss_on_miss = 5.5
-            self.target_score = 900
+            self.target_score = 450
             self.initial_wounded_count = 1
         else:
             self.level_num = 3
-            self.level_name = "Nivel 3: Comandante (Grid 12x12 • 7 Flotas)"
+            self.level_name = "Nivel 3: Comandante (Grid 12x12 • 9 Flotas • Entrelazamiento Completo)"
             self.rows = 12
             self.cols = 12
-            self.num_ships = 7
+            self.num_ships = 9
             self.energy = 950
             self.coherence = 80.0
-            self.entangled_pairs_count = 3
+            self.entangled_pairs_count = 4
             self.hit_pts = 100
             self.wounded_hit_pts = 120
             self.counterattack_damage = 75
             self.coherence_loss_on_miss = 7.5
-            self.target_score = 1400
+            self.target_score = 700
             self.initial_wounded_count = 2
 
         self.turns = 0
@@ -93,7 +97,8 @@ class QiskitBattleEngine:
         self.event_log = []
         self.fleets = {}
         self.cells = {}
-        self.discovered_fleets = set()
+        self.revealed_entanglements = []
+        self.active_fleet_index = 0
 
         for r in range(self.rows):
             row_label = chr(65 + r)
@@ -107,13 +112,13 @@ class QiskitBattleEngine:
                     'candidate_fleets': []
                 }
 
-        fleet_ids = self._generate_fleets()
+        self.fleet_order = self._generate_fleets()
         self._setup_entanglements()
 
-        if fleet_ids:
-            self.discovered_fleets.add(fleet_ids[0])
+        current_fleet = self._get_current_turn_fleet()
+        if current_fleet and len(current_fleet['candidate_tiles']) == 2:
+            self.add_event(f"📡 TURNO 1: Radar escaneó 2 casillas ({current_fleet['candidate_tiles'][0]} y {current_fleet['candidate_tiles'][1]}) para {current_fleet['name']}.")
 
-        self.add_event(f"🎮 Misión Iniciada - {self.level_name}. Puntaje Objetivo: {self.target_score} Pts.")
         return self.get_full_state()
 
     def _generate_fleets(self):
@@ -172,12 +177,14 @@ class QiskitBattleEngine:
         return fleet_ids
 
     def _setup_entanglements(self):
+        self.entangled_pairs = []
+        if self.entangled_pairs_count <= 0:
+            return
+
         fleet_ids = list(self.fleets.keys())
         random.shuffle(fleet_ids)
 
-        self.entangled_pairs = []
         pairs_made = 0
-
         for i in range(0, len(fleet_ids) - 1, 2):
             if pairs_made >= self.entangled_pairs_count:
                 break
@@ -195,6 +202,13 @@ class QiskitBattleEngine:
             })
             pairs_made += 1
 
+    def _get_current_turn_fleet(self):
+        active_fleets = [f for f in self.fleets.values() if f['status'] in ['superposition', 'wounded']]
+        if active_fleets:
+            idx = self.active_fleet_index % len(active_fleets)
+            return active_fleets[idx]
+        return None
+
     def measure_cell(self, cell_id):
         if cell_id not in self.cells:
             return {'success': False, 'message': 'Celda no válida'}
@@ -205,13 +219,12 @@ class QiskitBattleEngine:
 
         target_fleet = None
         for fleet in self.fleets.values():
-            if fleet['status'] != 'destroyed' and cell_id in fleet['candidate_tiles']:
+            if fleet['status'] in ['superposition', 'wounded'] and cell_id in fleet['candidate_tiles']:
                 target_fleet = fleet
                 break
 
         self.turns += 1
 
-        # Si el disparo cae en casilla vacía -> CONTRAATAQUE ENEMIGO DRENA PUNTAJE Y COHERENCIA
         if not target_fleet:
             cell['status'] = 'water'
             damage = self.counterattack_damage
@@ -219,15 +232,19 @@ class QiskitBattleEngine:
             self.score = max(0, self.score - damage)
             self.coherence = max(0.0, round(self.coherence - coh_loss, 1))
             self.enemy_attacks_count += 1
-            self.add_event(f"🌊 AGUA en {cell_id}. ⚠️ ¡CONTRAATAQUE ENEMIGO! Pulso EMP en respuesta. [-{damage} Pts, -{coh_loss}% Coherencia]")
+            self.add_event(f"🌊 AGUA en {cell_id}. ⚠️ ¡CONTRAATAQUE ENEMIGO! Pulso EMP en respuesta. [-{damage} Pts]")
+            
+            self.active_fleet_index += 1
+            next_fleet = self._get_current_turn_fleet()
+            if next_fleet and len(next_fleet['candidate_tiles']) == 2:
+                self.add_event(f"📡 TURNO {self.turns+1}: Radar presenta el siguiente enlace ({' y '.join(next_fleet['candidate_tiles'])}) para {next_fleet['name']}.")
+
             return {
                 'success': True,
                 'is_hit': False,
                 'result_type': 'water_empty',
                 'state': self.get_full_state()
             }
-
-        self.discovered_fleets.add(target_fleet['id'])
 
         theta = target_fleet['circuit_theta']
         qc = QuantumCircuit(1)
@@ -240,6 +257,7 @@ class QiskitBattleEngine:
         measured_state_1 = is_real_location and (roll <= prob_hit)
 
         if measured_state_1:
+            # === ACIERTO (IMPACTO |1⟩): COLAPSO CNOT EN CASCADA SI EXISTE ENTRELAZAMIENTO ===
             was_wounded = (target_fleet['status'] == 'wounded')
             target_fleet['status'] = 'destroyed'
             target_fleet['prob_hit'] = 1.0
@@ -248,22 +266,38 @@ class QiskitBattleEngine:
 
             pts_gained = self.wounded_hit_pts if was_wounded else self.hit_pts
             self.score += pts_gained
-            self.add_event(f"💥 ¡IMPACTO DIRECTO en {cell_id}! {target_fleet['name']} colapsó a Derribada |1⟩. [+{pts_gained} pts]")
+            self.add_event(f"💥 ¡ACIERTO DIRECTO en {cell_id}! {target_fleet['name']} colapsó a Derribada |1⟩. [+{pts_gained} pts]")
 
             partner_id = target_fleet['entangled_with']
             if partner_id and self.fleets[partner_id]['status'] != 'destroyed':
                 partner = self.fleets[partner_id]
-                self.discovered_fleets.add(partner['id'])
+                partner_was_wounded = (partner['status'] == 'wounded')
+                partner['status'] = 'destroyed'
+                partner['prob_hit'] = 1.0
+                self.ships_destroyed += 1
 
-                new_theta = 0.72 * np.pi
-                qc_partner = QuantumCircuit(1)
-                qc_partner.ry(new_theta, 0)
+                partner_pts = self.wounded_hit_pts if partner_was_wounded else self.hit_pts
+                self.score += partner_pts
 
-                partner['status'] = 'wounded'
-                partner['prob_hit'] = 0.78
-                partner['circuit_theta'] = new_theta
+                partner_tile = partner['secret_real_tile']
+                if partner_tile in self.cells:
+                    self.cells[partner_tile]['status'] = 'hit'
 
-                self.add_event(f"⚡ ENTLEZAMIENTO CNOT REVELADO: El colapso de {target_fleet['name']} provocó una rotación en {partner['name']}. ¡Flota pareja descubierta en estado HERIDA (P=78%)!")
+                self.revealed_entanglements.append({
+                    'tile_a': cell_id,
+                    'tile_b': partner_tile,
+                    'fleet_a_id': target_fleet['id'],
+                    'fleet_b_id': partner['id'],
+                    'fleet_a_name': target_fleet['name'],
+                    'fleet_b_name': partner['name']
+                })
+
+                self.add_event(f"⚡ ¡COLAPSO CNOT EN CASCADA! El derribo de {target_fleet['name']} provocó la DESTRUCCIÓN INSTANTÁNEA de {partner['name']} en {partner_tile} por entrelazamiento cuántico. [+{partner_pts} Pts Bonus]")
+
+            self.active_fleet_index += 1
+            next_fleet = self._get_current_turn_fleet()
+            if next_fleet and len(next_fleet['candidate_tiles']) == 2:
+                self.add_event(f"📡 TURNO {self.turns+1}: Radar presenta el siguiente enlace ({' y '.join(next_fleet['candidate_tiles'])}) para {next_fleet['name']}.")
 
             return {
                 'success': True,
@@ -274,7 +308,6 @@ class QiskitBattleEngine:
             }
 
         else:
-            # === FALLO (AGUA |0⟩) -> COLAPSO DE SUPERPOSICIÓN Y CONTRAATAQUE ENEMIGO ===
             cell['status'] = 'water'
             damage = self.counterattack_damage
             coh_loss = self.coherence_loss_on_miss
@@ -293,9 +326,14 @@ class QiskitBattleEngine:
                 target_fleet['prob_hit'] = 1.0
                 target_fleet['circuit_theta'] = np.pi
 
-                self.add_event(f"🌊 AGUA en {cell_id}. 🔮 Colapso: {target_fleet['name']} revelada en {confirmed_tile}. ⚠️ ¡CONTRAATAQUE ENEMIGO! La flota disparó en respuesta. [-{damage} Pts, -{coh_loss}% Coherencia]")
+                self.add_event(f"🌊 FALLO en {cell_id}. 🔮 BARCO REVELADO EN {confirmed_tile} (Casilla deshabilitada). ⚠️ ¡CONTRAATAQUE ENEMIGO! [-{damage} Pts]")
             else:
-                self.add_event(f"🌊 AGUA en {cell_id}. ⚠️ ¡CONTRAATAQUE ENEMIGO! [-{damage} Pts, -{coh_loss}% Coherencia]")
+                self.add_event(f"🌊 FALLO en {cell_id}. ⚠️ ¡CONTRAATAQUE ENEMIGO! [-{damage} Pts]")
+
+            self.active_fleet_index += 1
+            next_fleet = self._get_current_turn_fleet()
+            if next_fleet and len(next_fleet['candidate_tiles']) == 2:
+                self.add_event(f"📡 TURNO {self.turns+1}: Radar presenta el siguiente enlace ({' y '.join(next_fleet['candidate_tiles'])}) para {next_fleet['name']}.")
 
             return {
                 'success': True,
@@ -337,10 +375,13 @@ class QiskitBattleEngine:
             self.event_log.pop()
 
     def get_full_state(self):
-        all_destroyed = self.ships_destroyed >= self.num_ships
+        all_resolved = all(f['status'] in ['destroyed', 'revealed'] for f in self.fleets.values())
         passed_score = self.score >= self.target_score
-        failed_game = (all_destroyed and not passed_score) or (self.coherence <= 0)
-        passed_game = all_destroyed and passed_score
+        failed_game = (all_resolved and not passed_score) or (self.coherence <= 0)
+        passed_game = all_resolved and passed_score
+
+        current_turn_fleet = self._get_current_turn_fleet()
+        active_turn_tiles = current_turn_fleet['candidate_tiles'] if (current_turn_fleet and len(current_turn_fleet['candidate_tiles']) == 2) else []
 
         return {
             'level_num': self.level_num,
@@ -356,7 +397,7 @@ class QiskitBattleEngine:
             'miss_penalty': self.counterattack_damage,
             'counterattack_damage': self.counterattack_damage,
             'coherence_loss_on_miss': self.coherence_loss_on_miss,
-            'all_ships_destroyed': all_destroyed,
+            'all_ships_destroyed': all_resolved,
             'passed_score': passed_score,
             'passed_game': passed_game,
             'failed_game': failed_game,
@@ -367,6 +408,8 @@ class QiskitBattleEngine:
             'cells': list(self.cells.values()),
             'fleets': list(self.fleets.values()),
             'entangled_pairs': self.entangled_pairs,
-            'discovered_fleets': list(self.discovered_fleets),
+            'revealed_entanglements': self.revealed_entanglements,
+            'current_turn_fleet_id': current_turn_fleet['id'] if current_turn_fleet else None,
+            'active_turn_tiles': active_turn_tiles,
             'event_log': self.event_log
         }

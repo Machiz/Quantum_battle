@@ -36,7 +36,10 @@ export default function App() {
         )}
 
         {activeTab === 'game' && (
-          <QuantumGameHud backendInfo={backendInfo} />
+          <QuantumGameHud 
+            backendInfo={backendInfo} 
+            onGoToLanding={() => setActiveTab('landing')} 
+          />
         )}
 
         {activeTab === 'code' && (
