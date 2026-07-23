@@ -1,9 +1,22 @@
 /**
- * Cliente de Servicios API para comunicarse con el Backend Python 3.10 + Qiskit
- * Incluye fallback a simulador local JS en caso de que el backend no esté disponible.
+ * Cliente API y Simulador Cuántico Local (v_final.md)
+ * Cumple con el paradigma de Batalla Naval Cuántica:
+ * - Flota = Qubit
+ * - Disparo = Medición 1-shot (50% prob o 75-80% herida)
+ * - Fallo (Agua) -> Colapso de superposición -> Revela la flota en la casilla alternativa (100% certeza)
+ * - Acierto (Impacto) -> Colapso a Derribada |1⟩ -> Propagación CNOT a flota entrelazada (Estado Herida)
  */
 
 const API_BASE = 'http://localhost:8000';
+
+const FLEET_NAMES = [
+  "Fragata Cuántica Alpha",
+  "Crucero Estelar Beta",
+  "Destructor Qubit Gamma",
+  "Submarino Hadamard Delta",
+  "Nave Insignia Epsilon",
+  "Acorazado Entrelazado Zeta"
+];
 
 export async function checkBackendStatus() {
   try {
@@ -13,42 +26,26 @@ export async function checkBackendStatus() {
       return { online: true, ...data };
     }
   } catch (err) {
-    console.warn("Backend Qiskit Python no detectado o timeout. Usando simulador local en cliente.", err);
+    // Backend fallback
   }
-  return { online: false, qiskit_version: "2.5.0 (Client Simulator)", python: "3.10.8 (Local Engine)" };
+  return { online: false, qiskit_version: "2.5.0 (Simulador JS)", python: "3.10.8 (Local)" };
 }
 
-export async function fetchNewGame(level = 'medium') {
+export async function fetchNewGame(level = '1') {
   try {
     const res = await fetch(`${API_BASE}/api/game/new`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ level, rows: 8, cols: 8 })
+      body: JSON.stringify({ level })
     });
     if (res.ok) {
       const data = await res.json();
       return { success: true, state: data.state, source: 'qiskit_python' };
     }
   } catch (e) {
-    console.log("Creando juego con simulador cuántico local...");
+    // Fallback a motor local
   }
   return { success: true, state: createLocalQuantumState(level), source: 'qiskit_client_sim' };
-}
-
-export async function applyGateApi(cellId, gateType) {
-  try {
-    const res = await fetch(`${API_BASE}/api/game/apply_gate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cell_id: cellId, gate_type: gateType })
-    });
-    if (res.ok) {
-      return await res.json();
-    }
-  } catch (e) {
-    console.log("Aplicando compuerta mediante simulador cuántico local...");
-  }
-  return null; // El frontend aplicará fallback si la API falla
 }
 
 export async function measureCellApi(cellId) {
@@ -62,96 +59,131 @@ export async function measureCellApi(cellId) {
       return await res.json();
     }
   } catch (e) {
-    console.log("Midiendo celda mediante simulador cuántico local...");
+    // Fallback
   }
   return null;
 }
 
 /**
- * SIMULADOR CUÁNTICO LOCAL CLIENTE (Fiel al motor Qiskit)
+ * SIMULADOR CUÁNTICO LOCAL CLIENTE (Fiel a v_final.md)
  */
-export function createLocalQuantumState(level = 'medium') {
+export function createLocalQuantumState(level = '1') {
   let levelNum = 2;
-  let levelName = "Nivel 2: Táctico (Entrelazamiento Parcial 75%)";
+  let levelName = "Nivel 2: Táctico (4 Flotas - Grid 8x8)";
   let rows = 8;
   let cols = 8;
-  let totalShips = 5;
+  let numShips = 4;
   let energy = 1240;
   let coherence = 90.0;
+  let entangledPairsCount = 2;
 
   if (level === '1' || level === 'easy' || level === 1) {
     levelNum = 1;
-    levelName = "Nivel 1: Novato (Superposición & Entrelazamiento Máximo)";
+    levelName = "Nivel 1: Novato (3 Flotas - Grid 6x6)";
     rows = 6;
     cols = 6;
-    totalShips = 3;
+    numShips = 3;
     energy = 1500;
     coherence = 100.0;
+    entangledPairsCount = 1;
   } else if (level === '3' || level === 'hard' || level === 3) {
     levelNum = 3;
-    levelName = "Nivel 3: Comandante (Interferencia & Decoherencia Alta)";
+    levelName = "Nivel 3: Comandante (5 Flotas - Grid 8x8)";
     rows = 8;
     cols = 8;
-    totalShips = 6;
+    numShips = 5;
     energy = 950;
     coherence = 80.0;
+    entangledPairsCount = 2;
   }
 
-  const cells = [];
-  const eventLog = [];
-  
-  // Posiciones de barcos simuladas según dimensiones
-  const secretShipsL1 = new Set(['B-02', 'C-04', 'E-03']);
-  const secretShipsL2 = new Set(['B-03', 'C-03', 'D-03', 'E-02', 'E-05']);
-  const secretShipsL3 = new Set(['A-01', 'B-04', 'D-02', 'E-06', 'F-03', 'H-05']);
-
-  const secretShips = levelNum === 1 ? secretShipsL1 : (levelNum === 3 ? secretShipsL3 : secretShipsL2);
-  
+  const cells = {};
   for (let r = 0; r < rows; r++) {
     const rowLabel = String.fromCharCode(65 + r);
     for (let c = 0; c < cols; c++) {
       const cellId = `${rowLabel}-${String(c).padStart(2, '0')}`;
-      const isShip = secretShips.has(cellId);
-      
-      let pShip = isShip ? (0.65 + Math.random() * 0.25) : (0.08 + Math.random() * 0.22);
-      let pWater = 1.0 - pShip;
-      
-      if (cellId === 'B-02' && levelNum === 1) pShip = 0.75;
-      if (cellId === 'E-05' && levelNum === 2) pShip = 0.70;
-      if (cellId === 'E-02' && levelNum === 2) pShip = 0.45;
-      
-      pWater = 1.0 - pShip;
-      const ampA = Math.sqrt(pWater);
-      const ampB = Math.sqrt(pShip);
-      
-      cells.push({
+      cells[cellId] = {
         id: cellId,
         row: r,
         col: c,
-        is_secret_ship: isShip,
-        status: 'superposition',
-        prob_ship: Number(pShip.toFixed(3)),
-        prob_water: Number(pWater.toFixed(3)),
-        amp_a: Number(ampA.toFixed(3)),
-        amp_b: Number(ampB.toFixed(3)),
-        phase: Number((Math.random() * 40 - 20).toFixed(1)),
-        entangled_with: (cellId === 'E-02' && levelNum >= 2) ? ['E-05'] : ((cellId === 'E-05' && levelNum >= 2) ? ['E-02'] : []),
-      });
+        status: 'empty',
+        candidate_fleets: []
+      };
     }
   }
 
-  const now = new Date().toLocaleTimeString('es-ES', { hour12: false });
-  eventLog.push({ time: now, text: `🎮 Sesión iniciada - ${levelName}` });
-  eventLog.push({ time: now, text: `📡 Radar Qiskit inicializado en cuadrícula de ${rows}x${cols}` });
+  const usedTiles = new Set();
+  const fleets = {};
+  const fleetIds = [];
 
-  const entangledPairs = levelNum === 1 ? [
-    { cell_a: 'B-02', cell_b: 'C-04', theta: Math.PI / 4, correlation: 1.0 }
-  ] : (levelNum === 2 ? [
-    { cell_a: 'E-02', cell_b: 'E-05', theta: Math.PI / 3, correlation: 0.75 }
-  ] : [
-    { cell_a: 'D-02', cell_b: 'E-06', theta: Math.PI / 2.5, correlation: 0.50 },
-    { cell_a: 'A-01', cell_b: 'F-03', theta: Math.PI / 3, correlation: 0.50 }
-  ]);
+  for (let i = 0; i < numShips; i++) {
+    const fleetId = `fleet_${i + 1}`;
+    const fleetName = FLEET_NAMES[i % FLEET_NAMES.length];
+
+    const candidates = [];
+    let attempts = 0;
+    while (candidates.length < 2 && attempts < 200) {
+      attempts++;
+      const r = Math.floor(Math.random() * rows);
+      const c = Math.floor(Math.random() * cols);
+      const tId = `${String.fromCharCode(65 + r)}-${String(c).padStart(2, '0')}`;
+      if (!usedTiles.has(tId) && !candidates.includes(tId)) {
+        candidates.push(tId);
+      }
+    }
+
+    if (candidates.length < 2) {
+      const allPossible = Object.keys(cells);
+      candidates.push(allPossible[Math.floor(Math.random() * allPossible.length)]);
+      candidates.push(allPossible[Math.floor(Math.random() * allPossible.length)]);
+    }
+
+    candidates.forEach(tId => {
+      usedTiles.add(tId);
+      cells[tId].candidate_fleets.push(fleetId);
+    });
+
+    const secretRealTile = candidates[Math.floor(Math.random() * candidates.length)];
+
+    fleets[fleetId] = {
+      id: fleetId,
+      name: fleetName,
+      status: 'superposition',
+      candidate_tiles: candidates,
+      secret_real_tile: secretRealTile,
+      prob_hit: 0.50,
+      circuit_theta: Math.PI / 2,
+      entangled_with: null
+    };
+    fleetIds.push(fleetId);
+  }
+
+  // Entrelazamientos
+  const shuffledFleetIds = [...fleetIds].sort(() => 0.5 - Math.random());
+  const entangledPairs = [];
+  let pairsMade = 0;
+
+  for (let i = 0; i < shuffledFleetIds.length - 1; i += 2) {
+    if (pairsMade >= entangledPairsCount) break;
+    const f1Id = shuffledFleetIds[i];
+    const f2Id = shuffledFleetIds[i + 1];
+
+    fleets[f1Id].entangled_with = f2Id;
+    fleets[f2Id].entangled_with = f1Id;
+
+    entangledPairs.push({
+      fleet_a: f1Id,
+      fleet_b: f2Id,
+      fleet_a_name: fleets[f1Id].name,
+      fleet_b_name: fleets[f2Id].name
+    });
+    pairsMade++;
+  }
+
+  const now = new Date().toLocaleTimeString('es-ES', { hour12: false });
+  const eventLog = [
+    { time: now, text: `🎮 Nueva Partida (Simulador JS) - ${levelName}. ${numShips} Flotas en Superposición.` }
+  ];
 
   return {
     level_num: levelNum,
@@ -159,13 +191,113 @@ export function createLocalQuantumState(level = 'medium') {
     energy: energy,
     coherence: coherence,
     turns: 0,
-    ships_found: 0,
-    total_ships: totalShips,
+    score: 0,
+    ships_destroyed: 0,
+    total_ships: numShips,
+    is_victory: false,
     enemy_attacks_count: 0,
     rows: rows,
     cols: cols,
-    cells: cells,
+    cells: Object.values(cells),
+    fleets: Object.values(fleets),
     entangled_pairs: entangledPairs,
     event_log: eventLog
+  };
+}
+
+/**
+ * Simulador local de medición si falla la API FastAPI
+ */
+export function localMeasureCell(gameState, cellId) {
+  const newCells = gameState.cells.map(c => ({ ...c }));
+  const newFleets = gameState.fleets.map(f => ({ ...f, candidate_tiles: [...f.candidate_tiles] }));
+  const cell = newCells.find(c => c.id === cellId);
+
+  if (!cell || cell.status === 'water' || cell.status === 'hit') {
+    return { success: false, message: 'Celda no válida o ya atacada' };
+  }
+
+  let targetFleet = newFleets.find(f => f.status !== 'destroyed' && f.candidate_tiles.includes(cellId));
+  const newLog = [...gameState.event_log];
+  const now = new Date().toLocaleTimeString('es-ES', { hour12: false });
+
+  let newScore = gameState.score;
+  let newShipsDestroyed = gameState.ships_destroyed;
+  let newCoherence = gameState.coherence;
+
+  if (!targetFleet) {
+    cell.status = 'water';
+    newScore = Math.max(0, newScore - 20);
+    newCoherence = Math.max(5.0, Number((newCoherence - 1.5).toFixed(1)));
+    newLog.unshift({ time: now, text: `🌊 Disparo en ${cellId}: AGUA. Casilla vacía. [-20 pts]` });
+
+    return {
+      success: true,
+      state: {
+        ...gameState,
+        turns: gameState.turns + 1,
+        score: newScore,
+        coherence: newCoherence,
+        cells: newCells,
+        event_log: newLog
+      }
+    };
+  }
+
+  const isRealLocation = (cellId === targetFleet.secret_real_tile);
+  const probHit = targetFleet.prob_hit;
+  const roll = Math.random();
+  const isHit = isRealLocation && (roll <= probHit);
+
+  if (isHit) {
+    // IMPACTO
+    targetFleet.status = 'destroyed';
+    targetFleet.prob_hit = 1.0;
+    cell.status = 'hit';
+    newShipsDestroyed += 1;
+    const ptsGained = targetFleet.status === 'wounded' ? 250 : 200;
+    newScore += ptsGained;
+    newLog.unshift({ time: now, text: `💥 ¡IMPACTO DIRECTO en ${cellId}! La ${targetFleet.name} colapsó a Derribada |1⟩. [+{ptsGained} pts]` });
+
+    // CNOT Entanglement
+    if (targetFleet.entangled_with) {
+      const partner = newFleets.find(f => f.id === targetFleet.entangled_with);
+      if (partner && partner.status !== 'destroyed') {
+        partner.status = 'wounded';
+        partner.prob_hit = 0.78;
+        newLog.unshift({ time: now, text: `⚡ ENTLEZAMIENTO CNOT: El colapso de ${targetFleet.name} provocó una rotación en ${partner.name}. ¡Flota entrelazada ahora está HERIDA (P=78%)!` });
+      }
+    }
+  } else {
+    // FALLO Y COLAPSO DE SUPERPOSICIÓN
+    cell.status = 'water';
+    newScore = Math.max(0, newScore - 40);
+    newCoherence = Math.max(5.0, Number((newCoherence - 3.0).toFixed(1)));
+
+    const altTile = targetFleet.candidate_tiles.find(t => t !== cellId);
+    if (altTile) {
+      targetFleet.status = 'revealed';
+      targetFleet.candidate_tiles = [altTile];
+      targetFleet.secret_real_tile = altTile;
+      targetFleet.prob_hit = 1.0;
+      newLog.unshift({ time: now, text: `🌊 AGUA en ${cellId}. 🔮 ¡COLAPSO DE SUPERPOSICIÓN! ${targetFleet.name} revelada con 100% de certeza en ${altTile}. [-40 pts]` });
+    } else {
+      newLog.unshift({ time: now, text: `🌊 AGUA en ${cellId}. [-40 pts]` });
+    }
+  }
+
+  return {
+    success: true,
+    state: {
+      ...gameState,
+      turns: gameState.turns + 1,
+      score: newScore,
+      ships_destroyed: newShipsDestroyed,
+      coherence: newCoherence,
+      is_victory: newShipsDestroyed >= gameState.total_ships,
+      cells: newCells,
+      fleets: newFleets,
+      event_log: newLog
+    }
   };
 }

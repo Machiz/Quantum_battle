@@ -1,5 +1,5 @@
 import React from 'react';
-import { FileText, Cpu, Code2, Terminal, Atom, CheckCircle2, ArrowRight } from 'lucide-react';
+import { FileText, Cpu, Code2, Terminal, Atom, CheckCircle2, ArrowRight, Shield, Flame, Zap } from 'lucide-react';
 
 export default function CodeDocModal() {
   return (
@@ -12,13 +12,13 @@ export default function CodeDocModal() {
             <div>
               <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-[#a855f7]/20 border border-[#a855f7]/40 text-[#c084fc] font-mono text-xs mb-3">
                 <Atom className="w-4 h-4 animate-spin-slow" />
-                <span>EXPLICACIÓN DE CÓDIGO Y ARQUITECTURA TÉCNICA</span>
+                <span>DOCUMENTACIÓN DE CÓDIGO Y ARQUITECTURA TÉCNICA (v_final.md)</span>
               </div>
               <h1 className="text-3xl md:text-4xl font-display font-bold text-white">
                 Backend Cuántico Qiskit (Python 3.10.8)
               </h1>
               <p className="text-slate-300 text-sm mt-2 max-w-2xl">
-                Documentación detallada del modelo matemático de circuitos cuánticos, vectores de estado, entrelazamiento parcial y comunicación API FastAPI.
+                Modelo formal de Qiskit: La Flota es un Qubit, el Disparo es una Medición de 1-Shot, el Fallo provoca Colapso de Superposición y el Entrelazamiento CNOT genera Flotas Heridas.
               </p>
             </div>
 
@@ -36,33 +36,33 @@ export default function CodeDocModal() {
         <div className="hud-panel p-8 rounded-2xl border border-[#1b263b] space-y-4">
           <h2 className="text-2xl font-display font-bold text-[#00e5ff] flex items-center space-x-2">
             <Code2 className="w-6 h-6" />
-            <span>1. Arquitectura del Sistema</span>
+            <span>1. Arquitectura del Sistema (v_final.md)</span>
           </h2>
           <p className="text-slate-300 text-sm leading-relaxed">
-            El proyecto implementa una arquitectura desacoplada cliente-servidor donde la física cuántica se calcula verdaderamente en Python utilizando <strong>Qiskit</strong>.
+            El proyecto implementa una arquitectura desacoplada cliente-servidor donde la física cuántica se calcula en Python utilizando <strong>Qiskit 2.5.0</strong>.
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2 font-mono text-xs">
             <div className="hud-card p-4 rounded-xl border border-[#1b263b]">
               <div className="text-[#00e5ff] font-bold mb-1">Frontend (React + Vite)</div>
-              <div className="text-slate-400">HUD táctico que replica la interfaz del concept image, gráficos SVG para entrelazamientos e Inspector de celdas.</div>
+              <div className="text-slate-400">HUD táctico interactivo con tablero N x N, radar de flotas en superposición y visualización de entrelazamientos.</div>
             </div>
             <div className="hud-card p-4 rounded-xl border border-[#1b263b]">
               <div className="text-[#c084fc] font-bold mb-1">REST API (FastAPI)</div>
-              <div className="text-slate-400">Servidor en Python que expone endpoints HTTP para reinicio, aplicación de compuertas y medición.</div>
+              <div className="text-slate-400">Endpoints `/api/game/new` y `/api/game/measure` para disparar mediciones y recibir colapsos de estado.</div>
             </div>
             <div className="hud-card p-4 rounded-xl border border-[#1b263b]">
-              <div className="text-[#ff3b5c] font-bold mb-1">Motor Cuántico (Qiskit 2.5.0)</div>
-              <div className="text-slate-400">Simulación exacta con QuantumCircuit, RY(θ), CX y Statevector para extraer amplitudes α y β.</div>
+              <div className="text-[#ff3b5c] font-bold mb-1">Motor Cuántico (Qiskit)</div>
+              <div className="text-slate-400">Simulación exacta con QuantumCircuit(1), RY(θ), CNOT y Statevector para ejecutar mediciones 1-shot.</div>
             </div>
           </div>
         </div>
 
-        {/* Section 2: Qiskit Code Explanation */}
+        {/* Section 2: Qiskit Code Snippet */}
         <div className="hud-panel p-8 rounded-2xl border border-[#1b263b] space-y-6">
           <h2 className="text-2xl font-display font-bold text-[#c084fc] flex items-center space-x-2">
             <Terminal className="w-6 h-6" />
-            <span>2. Código Backend Qiskit (Snippet de Ejemplo)</span>
+            <span>2. Circuito Qiskit de la Flota (Código Backend)</span>
           </h2>
 
           <div className="bg-[#070a0f] p-6 rounded-xl border border-[#1b263b] overflow-x-auto font-mono text-xs text-slate-200 leading-relaxed shadow-inner">
@@ -70,56 +70,36 @@ export default function CodeDocModal() {
 from qiskit import QuantumCircuit
 from qiskit.quantum_info import Statevector
 
-# 1. Crear circuito de entrelazamiento parcial entre 2 qubits (casillas E-02 y E-05)
-qc = QuantumCircuit(2)
+# 1. Crear circuito de 1 Qubit para la Flota A (en Superposición entre A3 y D5)
+qc_fleet_a = QuantumCircuit(1)
+theta = np.pi / 2  # Superposición equitativa (50% / 50%)
+qc_fleet_a.ry(theta, 0)
 
-# 2. Rotación parametrizada RY(theta) para controlar el grado de probabilidad inicial
-theta = np.pi / 4  # Genera ~85% / 15% de entrelazamiento parcial
-qc.ry(theta, 0)
+# 2. Medición proyectiva de 1 shot al disparar a A3:
+sv = Statevector.from_instruction(qc_fleet_a)
+prob_hit = float(abs(sv.data[1])**2)  # 0.50
 
-# 3. Aplicar CNOT (CX) para vincular el Qubit 0 y Qubit 1
-qc.cx(0, 1)
-
-# 4. Obtener Vector de Estado exacto de Qiskit
-sv = Statevector.from_instruction(qc)
-amp_00 = sv.data[0]  # Amplitude |00⟩
-amp_11 = sv.data[3]  # Amplitude |11⟩
-
-print(f"Probabilidad de colapso conjunto: {abs(amp_11)**2:.2f}")`}</pre>
+# 3. Al destruirse la Flota A, propagación CNOT + Ry en Flota B (Entrelazada):
+qc_fleet_b = QuantumCircuit(1)
+new_theta = 0.72 * np.pi  # Rotación de Fase Ry(θ) -> P(hit) sube a ~78% (Estado Herida)
+qc_fleet_b.ry(new_theta, 0)
+sv_b = Statevector.from_instruction(qc_fleet_b)
+prob_wounded = float(abs(sv_b.data[1])**2)  # 0.78`}</pre>
           </div>
 
           <div className="space-y-3 text-xs text-slate-300">
             <div className="flex items-start space-x-2">
               <CheckCircle2 className="w-4 h-4 text-[#00e5ff] shrink-0 mt-0.5" />
-              <span><strong>Compuerta Hadamard (H):</strong> Transforma |0⟩ en (|0⟩ + |1⟩)/√2 (50% probabilidad), expandiendo certezas en casillas vecinas.</span>
+              <span><strong>Superposición Ubicacional (50%):</strong> Representada por Ry(π/2) en el qubit de la flota.</span>
             </div>
             <div className="flex items-start space-x-2">
               <CheckCircle2 className="w-4 h-4 text-[#ff3b5c] shrink-0 mt-0.5" />
-              <span><strong>Compuerta Pauli-X (X):</strong> Invierte el estado probabilístico (NOT bit flip). De 20% Barco pasa a 80% Barco.</span>
+              <span><strong>Colapso de Superposición:</strong> Si la medición resulta Agua (|0⟩), la función de onda colapsa y la flota se confirma automáticamente en la casilla alternativa con 100% de certeza.</span>
             </div>
             <div className="flex items-start space-x-2">
-              <CheckCircle2 className="w-4 h-4 text-[#c084fc] shrink-0 mt-0.5" />
-              <span><strong>Compuerta Pauli-Z (Z):</strong> Invierte la fase relativa del estado (|1⟩ → -|1⟩) permitiendo fenómenos de interferencia cuántica.</span>
+              <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <span><strong>Entrelazamiento CNOT (Flota Herida):</strong> La rotación Ry(θ) eleva la probabilidad de impacto al 78% manteniendo la ubicación de la Flota B oculta.</span>
             </div>
-          </div>
-        </div>
-
-        {/* Section 3: Setup Instructions */}
-        <div className="hud-panel p-8 rounded-2xl border border-[#1b263b] space-y-4">
-          <h2 className="text-2xl font-display font-bold text-white flex items-center space-x-2">
-            <CheckCircle2 className="w-6 h-6 text-emerald-400" />
-            <span>3. Cómo Ejecutar el Backend en Python 3.10.8</span>
-          </h2>
-
-          <div className="bg-[#070a0f] p-4 rounded-xl border border-[#1b263b] font-mono text-xs space-y-2 text-slate-300">
-            <div># 1. Instalar dependencias necesarias</div>
-            <div className="text-[#00e5ff]">pip install qiskit fastapi uvicorn pydantic numpy</div>
-            <br />
-            <div># 2. Iniciar el servidor FastAPI con Qiskit</div>
-            <div className="text-[#00e5ff]">python run_backend.py</div>
-            <br />
-            <div># 3. Iniciar el frontend Vite en otra terminal</div>
-            <div className="text-[#00e5ff]">npm run dev</div>
           </div>
         </div>
 
