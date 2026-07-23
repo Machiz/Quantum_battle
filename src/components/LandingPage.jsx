@@ -24,7 +24,7 @@ export default function LandingPage({ onStartGame }) {
           <h1 className="text-4xl md:text-6xl lg:text-7xl font-display font-extrabold tracking-tight text-white leading-tight mb-6">
             BATTLESHIP CUÁNTICO
             <span className="block text-transparent bg-clip-text bg-gradient-to-r from-[#00e5ff] via-[#38bdf8] to-[#a855f7] mt-2">
-              CONCEPTO & ABSTRACCIÓN v_final
+              CONCEPTO & ABSTRACCIÓN
             </span>
           </h1>
 
@@ -79,7 +79,7 @@ export default function LandingPage({ onStartGame }) {
         <div className="text-center mb-16">
           <span className="text-xs font-mono text-[#00e5ff] tracking-widest uppercase">Lógica del Sistema</span>
           <h2 className="text-3xl md:text-4xl font-display font-bold text-white mb-4 mt-1">
-            Paradigma y Estados de la Flota (v_final.md)
+            Paradigma y Estados de la Flota
           </h2>
           <p className="text-slate-400 max-w-2xl mx-auto text-base">
             El modelo abstrae la computación cuántica de forma fluida y pedagógica sobre un tablero de $N \times N$.
