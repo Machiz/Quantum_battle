@@ -1,10 +1,7 @@
 /**
  * Cliente API y Simulador Cuántico Local (v_final.md)
- * Cumple con el paradigma de Batalla Naval Cuántica:
- * - Flota = Qubit
- * - Disparo = Medición 1-shot (50% prob o 75-80% herida)
- * - Fallo (Agua) -> Colapso de superposición -> Revela la flota en la casilla alternativa (100% certeza)
- * - Acierto (Impacto) -> Colapso a Derribada |1⟩ -> Propagación CNOT a flota entrelazada (Estado Herida)
+ * Maneja los umbrales de puntuación por nivel (450 pts N1, 900 pts N2),
+ * matrices crecientes (6x6 -> 8x8 -> 12x12), barcos (3 -> 5 -> 7) y puntos (+200 -> +150 -> +100).
  */
 
 const API_BASE = 'http://localhost:8000';
@@ -15,8 +12,16 @@ const FLEET_NAMES = [
   "Destructor Qubit Gamma",
   "Submarino Hadamard Delta",
   "Nave Insignia Epsilon",
-  "Acorazado Entrelazado Zeta"
+  "Acorazado Entrelazado Zeta",
+  "Portaaviones Cuántico Eta",
+  "Corbeta CNOT Theta"
 ];
+
+const HINTS_MAP = {
+  1: "Pista Táctica: Para alcanzar los 450 pts mínimos requeridos en el Nivel 1, evita disparar a ciegas en casillas vacías. Enfócate en las casillas en Superposición (50%) para forzar el Colapso de Onda o activar Entrelazamiento CNOT y rematar Flotas Heridas (+250 pts).",
+  2: "Pista Táctica: En el tablero 8x8 con 5 flotas, los puntos por acierto bajan a 150 pts. Prioriza eliminar primero las flotas en estado HERIDA (78% prob) para acumular bonus extra y superar los 900 pts requeridos para avanzar.",
+  3: "Pista Táctica: En el tablero 12x12 con 7 flotas y penalización de 60 pts por fallo, cada tiro perdido destruye tu Coherencia. Rastra con precisión las parejas de superposición antes de medir."
+};
 
 export async function checkBackendStatus() {
   try {
@@ -31,7 +36,7 @@ export async function checkBackendStatus() {
   return { online: false, qiskit_version: "2.5.0 (Simulador JS)", python: "3.10.8 (Local)" };
 }
 
-export async function fetchNewGame(level = '1') {
+export async function fetchNewGame(level = '1', currentScore = 0) {
   try {
     const res = await fetch(`${API_BASE}/api/game/new`, {
       method: 'POST',
@@ -40,12 +45,16 @@ export async function fetchNewGame(level = '1') {
     });
     if (res.ok) {
       const data = await res.json();
+      // Si se pasa puntaje acumulado de niveles anteriores
+      if (currentScore > 0 && data.state) {
+        data.state.score = currentScore;
+      }
       return { success: true, state: data.state, source: 'qiskit_python' };
     }
   } catch (e) {
     // Fallback a motor local
   }
-  return { success: true, state: createLocalQuantumState(level), source: 'qiskit_client_sim' };
+  return { success: true, state: createLocalQuantumState(level, currentScore), source: 'qiskit_client_sim' };
 }
 
 export async function measureCellApi(cellId) {
@@ -67,34 +76,46 @@ export async function measureCellApi(cellId) {
 /**
  * SIMULADOR CUÁNTICO LOCAL CLIENTE (Fiel a v_final.md)
  */
-export function createLocalQuantumState(level = '1') {
-  let levelNum = 2;
-  let levelName = "Nivel 2: Táctico (4 Flotas - Grid 8x8)";
-  let rows = 8;
-  let cols = 8;
-  let numShips = 4;
-  let energy = 1240;
-  let coherence = 90.0;
-  let entangledPairsCount = 2;
+export function createLocalQuantumState(level = '1', initialScore = 0) {
+  let levelNum = 1;
+  let levelName = "Nivel 1: Novato (Grid 6x6 • 3 Flotas)";
+  let rows = 6;
+  let cols = 6;
+  let numShips = 3;
+  let energy = 1500;
+  let coherence = 100.0;
+  let entangledPairsCount = 1;
+  let hitPts = 200;
+  let woundedHitPts = 250;
+  let missPenalty = 40;
+  let targetScore = 450;
 
-  if (level === '1' || level === 'easy' || level === 1) {
-    levelNum = 1;
-    levelName = "Nivel 1: Novato (3 Flotas - Grid 6x6)";
-    rows = 6;
-    cols = 6;
-    numShips = 3;
-    energy = 1500;
-    coherence = 100.0;
-    entangledPairsCount = 1;
-  } else if (level === '3' || level === 'hard' || level === 3) {
-    levelNum = 3;
-    levelName = "Nivel 3: Comandante (5 Flotas - Grid 8x8)";
+  if (level === '2' || level === 'medium' || level === 2) {
+    levelNum = 2;
+    levelName = "Nivel 2: Táctico (Grid 8x8 • 5 Flotas)";
     rows = 8;
     cols = 8;
     numShips = 5;
+    energy = 1240;
+    coherence = 90.0;
+    entangledPairsCount = 2;
+    hitPts = 150;
+    woundedHitPts = 180;
+    missPenalty = 50;
+    targetScore = 900;
+  } else if (level === '3' || level === 'hard' || level === 3) {
+    levelNum = 3;
+    levelName = "Nivel 3: Comandante (Grid 12x12 • 7 Flotas)";
+    rows = 12;
+    cols = 12;
+    numShips = 7;
     energy = 950;
     coherence = 80.0;
-    entangledPairsCount = 2;
+    entangledPairsCount = 3;
+    hitPts = 100;
+    woundedHitPts = 120;
+    missPenalty = 60;
+    targetScore = 1400;
   }
 
   const cells = {};
@@ -122,7 +143,7 @@ export function createLocalQuantumState(level = '1') {
 
     const candidates = [];
     let attempts = 0;
-    while (candidates.length < 2 && attempts < 200) {
+    while (candidates.length < 2 && attempts < 300) {
       attempts++;
       const r = Math.floor(Math.random() * rows);
       const c = Math.floor(Math.random() * cols);
@@ -182,7 +203,7 @@ export function createLocalQuantumState(level = '1') {
 
   const now = new Date().toLocaleTimeString('es-ES', { hour12: false });
   const eventLog = [
-    { time: now, text: `🎮 Nueva Partida (Simulador JS) - ${levelName}. ${numShips} Flotas en Superposición.` }
+    { time: now, text: `🎮 Misión Iniciada (Simulador JS) - ${levelName}. Puntos Objetivo: ${targetScore} Pts.` }
   ];
 
   return {
@@ -191,10 +212,17 @@ export function createLocalQuantumState(level = '1') {
     energy: energy,
     coherence: coherence,
     turns: 0,
-    score: 0,
+    score: initialScore,
     ships_destroyed: 0,
     total_ships: numShips,
-    is_victory: false,
+    target_score: targetScore,
+    hit_pts: hitPts,
+    miss_penalty: missPenalty,
+    all_ships_destroyed: false,
+    passed_score: initialScore >= targetScore,
+    passed_game: false,
+    failed_game: false,
+    tactical_hint: HINTS_MAP[levelNum] || "",
     enemy_attacks_count: 0,
     rows: rows,
     cols: cols,
@@ -225,11 +253,18 @@ export function localMeasureCell(gameState, cellId) {
   let newShipsDestroyed = gameState.ships_destroyed;
   let newCoherence = gameState.coherence;
 
+  const hitPts = gameState.hit_pts || (gameState.level_num === 1 ? 200 : (gameState.level_num === 2 ? 150 : 100));
+  const woundedHitPts = gameState.level_num === 1 ? 250 : (gameState.level_num === 2 ? 180 : 120);
+  const missPenalty = gameState.miss_penalty || (gameState.level_num === 1 ? 40 : (gameState.level_num === 2 ? 50 : 60));
+
   if (!targetFleet) {
     cell.status = 'water';
-    newScore = Math.max(0, newScore - 20);
-    newCoherence = Math.max(5.0, Number((newCoherence - 1.5).toFixed(1)));
-    newLog.unshift({ time: now, text: `🌊 Disparo en ${cellId}: AGUA. Casilla vacía. [-20 pts]` });
+    newScore = Math.max(0, newScore - missPenalty);
+    newCoherence = Math.max(0.0, Number((newCoherence - 2.0).toFixed(1)));
+    newLog.unshift({ time: now, text: `🌊 Disparo en ${cellId}: AGUA. Casilla vacía. [-${missPenalty} pts]` });
+
+    const allDestroyed = newShipsDestroyed >= gameState.total_ships;
+    const passedScore = newScore >= gameState.target_score;
 
     return {
       success: true,
@@ -238,6 +273,10 @@ export function localMeasureCell(gameState, cellId) {
         turns: gameState.turns + 1,
         score: newScore,
         coherence: newCoherence,
+        all_ships_destroyed: allDestroyed,
+        passed_score: passedScore,
+        passed_game: allDestroyed && passedScore,
+        failed_game: (allDestroyed && !passedScore) || (newCoherence <= 0),
         cells: newCells,
         event_log: newLog
       }
@@ -250,16 +289,15 @@ export function localMeasureCell(gameState, cellId) {
   const isHit = isRealLocation && (roll <= probHit);
 
   if (isHit) {
-    // IMPACTO
+    const wasWounded = (targetFleet.status === 'wounded');
     targetFleet.status = 'destroyed';
     targetFleet.prob_hit = 1.0;
     cell.status = 'hit';
     newShipsDestroyed += 1;
-    const ptsGained = targetFleet.status === 'wounded' ? 250 : 200;
+    const ptsGained = wasWounded ? woundedHitPts : hitPts;
     newScore += ptsGained;
     newLog.unshift({ time: now, text: `💥 ¡IMPACTO DIRECTO en ${cellId}! La ${targetFleet.name} colapsó a Derribada |1⟩. [+{ptsGained} pts]` });
 
-    // CNOT Entanglement
     if (targetFleet.entangled_with) {
       const partner = newFleets.find(f => f.id === targetFleet.entangled_with);
       if (partner && partner.status !== 'destroyed') {
@@ -269,10 +307,9 @@ export function localMeasureCell(gameState, cellId) {
       }
     }
   } else {
-    // FALLO Y COLAPSO DE SUPERPOSICIÓN
     cell.status = 'water';
-    newScore = Math.max(0, newScore - 40);
-    newCoherence = Math.max(5.0, Number((newCoherence - 3.0).toFixed(1)));
+    newScore = Math.max(0, newScore - missPenalty);
+    newCoherence = Math.max(0.0, Number((newCoherence - 3.5).toFixed(1)));
 
     const altTile = targetFleet.candidate_tiles.find(t => t !== cellId);
     if (altTile) {
@@ -280,11 +317,14 @@ export function localMeasureCell(gameState, cellId) {
       targetFleet.candidate_tiles = [altTile];
       targetFleet.secret_real_tile = altTile;
       targetFleet.prob_hit = 1.0;
-      newLog.unshift({ time: now, text: `🌊 AGUA en ${cellId}. 🔮 ¡COLAPSO DE SUPERPOSICIÓN! ${targetFleet.name} revelada con 100% de certeza en ${altTile}. [-40 pts]` });
+      newLog.unshift({ time: now, text: `🌊 AGUA en ${cellId}. 🔮 ¡COLAPSO DE SUPERPOSICIÓN! ${targetFleet.name} revelada con 100% de certeza en ${altTile}. [-${missPenalty} pts]` });
     } else {
-      newLog.unshift({ time: now, text: `🌊 AGUA en ${cellId}. [-40 pts]` });
+      newLog.unshift({ time: now, text: `🌊 AGUA en ${cellId}. [-${missPenalty} pts]` });
     }
   }
+
+  const allDestroyed = newShipsDestroyed >= gameState.total_ships;
+  const passedScore = newScore >= gameState.target_score;
 
   return {
     success: true,
@@ -294,7 +334,10 @@ export function localMeasureCell(gameState, cellId) {
       score: newScore,
       ships_destroyed: newShipsDestroyed,
       coherence: newCoherence,
-      is_victory: newShipsDestroyed >= gameState.total_ships,
+      all_ships_destroyed: allDestroyed,
+      passed_score: passedScore,
+      passed_game: allDestroyed && passedScore,
+      failed_game: (allDestroyed && !passedScore) || (newCoherence <= 0),
       cells: newCells,
       fleets: newFleets,
       event_log: newLog
