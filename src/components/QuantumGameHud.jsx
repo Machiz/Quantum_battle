@@ -91,7 +91,7 @@ export default function QuantumGameHud({ backendInfo, onGoToLanding }) {
       <div className="min-h-screen bg-[#070a0f] flex items-center justify-center text-[#00e5ff] font-mono">
         <div className="flex flex-col items-center space-y-4">
           <Atom className="w-12 h-12 animate-spin text-[#00e5ff]" />
-          <span className="tracking-widest">ESCANEAR RADAR CUÁNTICO QISKIT...</span>
+          <span className="tracking-widest">ESCANEAR RADAR CUÁNTICO...</span>
         </div>
       </div>
     );
@@ -197,7 +197,7 @@ export default function QuantumGameHud({ backendInfo, onGoToLanding }) {
             className="flex items-center space-x-1.5 bg-purple-950/60 text-purple-300 hover:bg-purple-900 border border-purple-700/50 px-3 py-1.5 rounded-lg text-xs font-sans transition"
           >
             <Atom className="w-4 h-4" />
-            <span>Tutorial 3 Principios</span>
+            <span>Tutorial Cuántico</span>
           </button>
 
           <button
@@ -520,7 +520,7 @@ export default function QuantumGameHud({ backendInfo, onGoToLanding }) {
               <div className="space-y-4">
                 <div className="p-4 bg-emerald-950/50 border border-emerald-600/60 rounded-xl space-y-1">
                   <h3 className="text-emerald-300 font-bold text-base">🏆 ¡FELICIDADES! HAS COMPLETADO EL JUEGO COMPLETO</h3>
-                  <p className="text-slate-300 text-xs">Dominaste los 3 Niveles y la Computación Cuántica Qiskit.</p>
+                  <p className="text-slate-300 text-xs">Dominaste los 3 Niveles y la Computación Cuántica.</p>
                 </div>
 
                 <button

@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
 import LandingPage from './components/LandingPage';
 import QuantumGameHud from './components/QuantumGameHud';
-import CodeDocModal from './components/CodeDocModal';
 import { checkBackendStatus } from './services/qiskitApi';
 
 export default function App() {
@@ -40,10 +39,6 @@ export default function App() {
             backendInfo={backendInfo} 
             onGoToLanding={() => setActiveTab('landing')} 
           />
-        )}
-
-        {activeTab === 'code' && (
-          <CodeDocModal />
         )}
       </main>
 

@@ -16,10 +16,10 @@ export default function QuantumOnboarding({ onStartGame }) {
           </div>
 
           <h1 className="text-3xl sm:text-5xl font-display font-extrabold text-white">
-            LOS 3 PRINCIPIOS CUÁNTICOS
+            PRINCIPIOS DE FÍSICA CUÁNTICA
           </h1>
           <p className="text-slate-300 text-sm max-w-2xl mx-auto">
-            Antes de tomar el mando de la flota, debes dominar las 3 leyes fundamentales que rigen el campo de batalla probabilístico.
+            Antes de tomar el mando de la flota, debes dominar las leyes fundamentales que rigen el campo de batalla probabilístico.
           </p>
         </div>
 
@@ -58,7 +58,7 @@ export default function QuantumOnboarding({ onStartGame }) {
             }`}
           >
             <Target className="w-6 h-6 text-cyan-400" />
-            <span className="font-bold">3. Interferencia / Colapso</span>
+            <span className="font-bold">3. Colapso de Onda</span>
           </button>
         </div>
 
@@ -97,22 +97,22 @@ export default function QuantumOnboarding({ onStartGame }) {
               <div className="flex items-center space-x-3 text-amber-400 border-b border-slate-800 pb-3">
                 <Zap className="w-7 h-7" />
                 <div>
-                  <h3 className="text-lg font-bold text-white">Entrelazamiento CNOT (Compuertas CX + Ry)</h3>
-                  <span className="text-xs font-mono text-amber-400">Efecto a Distancia • Flotas Vinculadas</span>
+                  <h3 className="text-lg font-bold text-white">Entrelazamiento CNOT (A partir de Nivel 2)</h3>
+                  <span className="text-xs font-mono text-amber-400">Compuerta CX • Colapso en Cascada</span>
                 </div>
               </div>
 
               <p className="text-slate-300 text-sm leading-relaxed">
-                Dos flotas pueden estar cuánticamente entrelazadas mediante una compuerta CNOT. Cuando la <strong>Flota A es destruida</strong>, su colapso activa una rotación de fase $R_y(\theta)$ en la <strong>Flota B</strong>.
+                A partir del Nivel 2, dos flotas están cuánticamente entrelazadas mediante compuertas CNOT. Cuando logras un <strong>impacto directo en la Flota A</strong>, el colapso en cascada <strong>destruye instantáneamente a la Flota B pareja</strong>.
               </p>
 
               <div className="bg-amber-950/40 border border-amber-800/60 rounded-lg p-4 text-xs space-y-2">
                 <div className="flex items-center space-x-2 text-amber-300 font-bold">
                   <Flame className="w-5 h-5" />
-                  <span>Estado: Flota B HERIDA / ROTADA (78% Prob. Impacto)</span>
+                  <span>Efecto: Destrucción Doble + Bonus de Puntos</span>
                 </div>
                 <p className="text-slate-300 text-[11px] leading-relaxed">
-                  La Flota B permanece oculta en el mapa, pero su resistencia cae drásticamente. ¡Atacarla entrega puntos extra de bonus!
+                  Ambas flotas se eliminan en un solo turno y se traza la línea CNOT dorada en el mapa.
                 </p>
               </div>
             </div>
@@ -123,22 +123,22 @@ export default function QuantumOnboarding({ onStartGame }) {
               <div className="flex items-center space-x-3 text-cyan-400 border-b border-slate-800 pb-3">
                 <Target className="w-7 h-7" />
                 <div>
-                  <h3 className="text-lg font-bold text-white">Interferencia & Colapso de Onda</h3>
+                  <h3 className="text-lg font-bold text-white">Medición & Colapso de Onda</h3>
                   <span className="text-xs font-mono text-cyan-400">Disparo = Medición de 1 Shot</span>
                 </div>
               </div>
 
               <p className="text-slate-300 text-sm leading-relaxed">
-                Cada disparo que realizas ejecuta una <strong>medición de 1 shot en Qiskit</strong>. Si tu disparo en A3 resulta en <strong>AGUA (|0⟩)</strong>, ¡has provocado la colapso de la función de onda!
+                Cada disparo ejecuta una <strong>medición de 1 shot en Qiskit</strong>. Si tu disparo en A3 resulta en <strong>AGUA (|0⟩)</strong>, la función de onda colapsa.
               </p>
 
               <div className="bg-cyan-950/40 border border-cyan-800/60 rounded-lg p-4 text-xs space-y-2">
                 <div className="flex items-center space-x-2 text-cyan-300 font-bold">
                   <CheckCircle2 className="w-5 h-5" />
-                  <span>Revelación Automática (100% Certeza)</span>
+                  <span>Barco Revelado en Casilla Alternativa</span>
                 </div>
                 <p className="text-slate-300 text-[11px] leading-relaxed">
-                  Al confirmar que A3 es Agua, el sistema colapsa la función de onda y <strong>revela automáticamente la flota en D5 con 100% de certeza</strong>.
+                  Al ser Agua en A3, el barco se <strong>muestra inmediatamente en D5 (100% certeza)</strong> de forma deshabilitada, pasando el radar al siguiente enlace.
                 </p>
               </div>
             </div>
@@ -155,13 +155,13 @@ export default function QuantumOnboarding({ onStartGame }) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 font-mono text-[11px] text-slate-300">
             <div className="bg-black/40 p-2 rounded border border-indigo-900/60">
               <strong className="text-purple-300 block">Nivel 1 (Grid 6x6)</strong>
-              3 Flotas • +200 pts/acierto<br />
-              <span className="text-yellow-400 font-bold">Mínimo: 300 Puntos</span>
+              5 Flotas • Superposición Pura<br />
+              <span className="text-yellow-400 font-bold">Mínimo: 225 Puntos</span>
             </div>
             <div className="bg-black/40 p-2 rounded border border-indigo-900/60">
               <strong className="text-amber-300 block">Nivel 2 (Grid 8x8)</strong>
-              5 Flotas • +150 pts/acierto<br />
-              <span className="text-yellow-400 font-bold">Mínimo: 700 Puntos</span>
+              7 Flotas • Entrelazamiento CNOT<br />
+              <span className="text-yellow-400 font-bold">Mínimo: 450 Puntos</span>
             </div>
           </div>
         </div>
@@ -172,7 +172,7 @@ export default function QuantumOnboarding({ onStartGame }) {
           className="w-full py-4 px-6 rounded-xl bg-gradient-to-r from-[#00e5ff] via-cyan-400 to-blue-500 hover:from-cyan-400 hover:to-blue-600 text-black font-extrabold text-base tracking-wider uppercase shadow-[0_0_30px_rgba(0,229,255,0.4)] transition-all duration-200 flex items-center justify-center space-x-3"
         >
           <Play className="w-6 h-6 fill-current" />
-          <span>¡ENTENDIDO, COMERZAR MISIÓN (NIVEL 1)!</span>
+          <span>¡ENTENDIDO, COMENZAR MISIÓN (NIVEL 1)!</span>
         </button>
 
       </div>

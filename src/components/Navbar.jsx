@@ -1,5 +1,5 @@
 import React from 'react';
-import { Atom, Shield, Terminal, Play, Cpu, Info, FileText } from 'lucide-react';
+import { Atom, Shield, Play, Cpu, Info } from 'lucide-react';
 
 export default function Navbar({ activeTab, setActiveTab, backendInfo }) {
   return (
@@ -18,7 +18,7 @@ export default function Navbar({ activeTab, setActiveTab, backendInfo }) {
                 OPERATION COLLAPSE
               </span>
             </div>
-            <p className="text-xs text-slate-400 font-mono">Hackathon Quantum Hub Perú • Qiskit Engine</p>
+            <p className="text-xs text-slate-400 font-mono">Hackathon Quantum Hub Perú</p>
           </div>
         </div>
 
@@ -26,7 +26,7 @@ export default function Navbar({ activeTab, setActiveTab, backendInfo }) {
         <nav className="flex items-center space-x-1 sm:space-x-2 bg-[#0d121c] p-1.5 rounded-xl border border-[#1b263b]">
           <button
             onClick={() => setActiveTab('landing')}
-            className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs md:text-sm font-medium transition-all ${
+            className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-lg text-xs md:text-sm font-medium transition-all ${
               activeTab === 'landing'
                 ? 'bg-gradient-to-r from-[#00e5ff]/20 to-[#00e5ff]/10 text-[#00e5ff] border border-[#00e5ff]/40 shadow-[0_0_10px_rgba(0,229,255,0.2)]'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-[#121927]'
@@ -38,7 +38,7 @@ export default function Navbar({ activeTab, setActiveTab, backendInfo }) {
 
           <button
             onClick={() => setActiveTab('game')}
-            className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs md:text-sm font-medium transition-all ${
+            className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-lg text-xs md:text-sm font-medium transition-all ${
               activeTab === 'game'
                 ? 'bg-gradient-to-r from-[#00e5ff]/20 to-[#00e5ff]/10 text-[#00e5ff] border border-[#00e5ff]/40 shadow-[0_0_10px_rgba(0,229,255,0.2)]'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-[#121927]'
@@ -47,29 +47,12 @@ export default function Navbar({ activeTab, setActiveTab, backendInfo }) {
             <Play className="w-4 h-4 text-[#00e5ff]" />
             <span className="font-bold">Centro de Comando (Juego)</span>
           </button>
-
-          <button
-            onClick={() => setActiveTab('code')}
-            className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs md:text-sm font-medium transition-all ${
-              activeTab === 'code'
-                ? 'bg-gradient-to-r from-[#a855f7]/20 to-[#a855f7]/10 text-[#c084fc] border border-[#a855f7]/40 shadow-[0_0_10px_rgba(168,85,247,0.2)]'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-[#121927]'
-            }`}
-          >
-            <FileText className="w-4 h-4 text-[#c084fc]" />
-            <span>Documentación & Qiskit</span>
-          </button>
         </nav>
 
-        {/* Backend Qiskit Status Pill */}
-        <div className="flex items-center space-x-2 bg-[#0d121c] px-3 py-1.5 rounded-lg border border-[#1b263b] text-xs font-mono">
-          <Cpu className={`w-4 h-4 ${backendInfo?.online ? 'text-emerald-400 animate-pulse' : 'text-amber-400'}`} />
-          <div className="flex flex-col text-left">
-            <span className="text-[10px] text-slate-400 uppercase tracking-wider">Motor Cuántico</span>
-            <span className="font-semibold text-slate-200">
-              {backendInfo?.online ? 'Python 3.10 + Qiskit v2.5.0' : 'Simulador Cuántico JS (Cliente)'}
-            </span>
-          </div>
+        {/* Status Pill */}
+        <div className="flex items-center space-x-2 bg-[#0d121c] px-3.5 py-1.5 rounded-lg border border-[#1b263b] text-xs font-mono">
+          <Cpu className="w-4 h-4 text-emerald-400 animate-pulse" />
+          <span className="font-semibold text-slate-200">Radar Cuántico Activo</span>
         </div>
 
       </div>
