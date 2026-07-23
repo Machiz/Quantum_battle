@@ -7,10 +7,8 @@ import datetime
 class QiskitBattleEngine:
     """
     Motor Cuántico para Batalla Naval Cuántica (v_final.md):
+    - Ejecuta Mediciones de 1-Shot directamente en Qiskit mediante Statevector.sample_counts(shots=1).
     - El entrelazamiento CNOT se activa A PARTIR DEL NIVEL 2.
-      Nivel 1 (Sin entrelazamientos, solo superposición pura).
-      Nivel 2 (2 pares entrelazados CNOT).
-      Nivel 3 (4 pares entrelazados CNOT).
     """
 
     FLEET_NAMES = [
@@ -67,7 +65,7 @@ class QiskitBattleEngine:
             self.num_ships = 7
             self.energy = 1240
             self.coherence = 90.0
-            self.entangled_pairs_count = 2  # Entrelazamiento activo desde Nivel 2
+            self.entangled_pairs_count = 2  # Entrelazamiento desde Nivel 2
             self.hit_pts = 150
             self.wounded_hit_pts = 180
             self.counterattack_damage = 60
@@ -246,15 +244,18 @@ class QiskitBattleEngine:
                 'state': self.get_full_state()
             }
 
+        # === CONSTRUCCIÓN Y MEDICIÓN DE 1 SHOT EN QISKIT ===
         theta = target_fleet['circuit_theta']
         qc = QuantumCircuit(1)
         qc.ry(theta, 0)
 
-        is_real_location = (cell_id == target_fleet['secret_real_tile'])
-        prob_hit = target_fleet['prob_hit']
+        # Muestreo nativo de 1 shot usando Statevector de Qiskit
+        sv = Statevector.from_instruction(qc)
+        sample_counts = sv.sample_counts(shots=1)  # Medición de 1 shot en Qiskit
+        qiskit_measured_state_1 = ('1' in sample_counts)
 
-        roll = random.random()
-        measured_state_1 = is_real_location and (roll <= prob_hit)
+        is_real_location = (cell_id == target_fleet['secret_real_tile'])
+        measured_state_1 = is_real_location and qiskit_measured_state_1
 
         if measured_state_1:
             # === ACIERTO (IMPACTO |1⟩): COLAPSO CNOT EN CASCADA SI EXISTE ENTRELAZAMIENTO ===
