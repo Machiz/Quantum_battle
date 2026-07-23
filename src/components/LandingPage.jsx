@@ -22,7 +22,7 @@ export default function LandingPage({ onStartGame }) {
           </div>
 
           <h1 className="text-4xl md:text-6xl lg:text-7xl font-display font-extrabold tracking-tight text-white leading-tight mb-6">
-            BATALLA NAVAL CUÁNTICA
+            BATTLESHIP CUÁNTICO
             <span className="block text-transparent bg-clip-text bg-gradient-to-r from-[#00e5ff] via-[#38bdf8] to-[#a855f7] mt-2">
               CONCEPTO & ABSTRACCIÓN v_final
             </span>

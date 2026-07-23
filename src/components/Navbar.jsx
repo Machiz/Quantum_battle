@@ -13,7 +13,7 @@ export default function Navbar({ activeTab, setActiveTab, backendInfo }) {
           </div>
           <div>
             <div className="flex items-center space-x-2">
-              <span className="font-display font-bold text-lg tracking-wider text-white">QUANTUM BATTLESHIP</span>
+              <span className="font-display font-bold text-lg tracking-wider text-white">BATTLESHIP CUÁNTICO</span>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#ff3b5c]/20 border border-[#ff3b5c]/40 text-[#ff3b5c] font-semibold tracking-widest">
                 OPERATION COLLAPSE
               </span>
