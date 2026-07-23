@@ -14,12 +14,10 @@ export default function QuantumGameHud({ backendInfo }) {
   const [selectedCellId, setSelectedCellId] = useState('A-00');
   const [loadingAction, setLoadingAction] = useState(false);
   const [level, setLevel] = useState('1');
-  const [showRulesModal, setShowRulesModal] = useState(false);
 
   const gridRef = useRef(null);
   const [gridCoords, setGridCoords] = useState({});
 
-  // Cargar partida al cambiar nivel
   useEffect(() => {
     initGame(level);
   }, [level]);
@@ -38,7 +36,6 @@ export default function QuantumGameHud({ backendInfo }) {
     setLoadingAction(false);
   };
 
-  // Recalcular posiciones exactas para el trazado SVG de superposición y entrelazamiento
   const updateGridCoords = () => {
     if (!gridRef.current) return;
     const gridRect = gridRef.current.getBoundingClientRect();
@@ -57,12 +54,16 @@ export default function QuantumGameHud({ backendInfo }) {
   };
 
   useEffect(() => {
-    updateGridCoords();
+    const timer = setTimeout(() => {
+      updateGridCoords();
+    }, 60);
     window.addEventListener('resize', updateGridCoords);
-    return () => window.removeEventListener('resize', updateGridCoords);
-  }, [gameState]);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('resize', updateGridCoords);
+    };
+  }, [gameState, showOnboarding]);
 
-  // Celebración con confetti al superar nivel
   useEffect(() => {
     if (gameState?.passed_game) {
       confetti({
@@ -73,7 +74,6 @@ export default function QuantumGameHud({ backendInfo }) {
     }
   }, [gameState?.passed_game]);
 
-  // Si está en Onboarding, mostrar pantalla previa de los 3 Principios
   if (showOnboarding) {
     return (
       <QuantumOnboarding 
@@ -96,7 +96,6 @@ export default function QuantumGameHud({ backendInfo }) {
     );
   }
 
-  // Ejecutar Disparo / Medición
   const handleMeasure = async (cellIdToMeasure) => {
     const targetId = cellIdToMeasure || selectedCellId;
     if (!targetId || loadingAction) return;
@@ -107,7 +106,6 @@ export default function QuantumGameHud({ backendInfo }) {
     if (apiRes && apiRes.state) {
       setGameState(apiRes.state);
     } else {
-      // Fallback simulador JS local
       const localRes = localMeasureCell(gameState, targetId);
       if (localRes.success) {
         setGameState(localRes.state);
@@ -116,17 +114,15 @@ export default function QuantumGameHud({ backendInfo }) {
     setLoadingAction(false);
   };
 
-  // Pasar al siguiente nivel manteniendo o acumulando puntaje
   const handleNextLevel = () => {
     const nextLvl = gameState.level_num === 1 ? '2' : '3';
     setLevel(nextLvl);
     initGame(nextLvl, gameState.score);
   };
 
-  // Encontrar celda seleccionada
   const selectedCell = gameState.cells.find(c => c.id === selectedCellId) || gameState.cells[0];
+  const discoveredSet = new Set(gameState.discovered_fleets || []);
 
-  // Encontrar flotas asociadas a la celda seleccionada
   const fleetsAtSelectedCell = gameState.fleets.filter(
     f => f.status !== 'destroyed' && f.candidate_tiles.includes(selectedCellId)
   );
@@ -137,7 +133,6 @@ export default function QuantumGameHud({ backendInfo }) {
       {/* Top Header / Tactical HUD Status Bar */}
       <div className="bg-[#0b1329]/80 backdrop-blur-md border border-[#00e5ff]/30 rounded-xl p-4 shadow-[0_0_25px_rgba(0,229,255,0.15)] flex flex-wrap items-center justify-between gap-4">
         
-        {/* Selector de Nivel & Título */}
         <div className="flex items-center space-y-1 sm:space-y-0 sm:space-x-4 flex-col sm:flex-row">
           <div className="flex items-center space-x-2">
             <Radio className="w-6 h-6 text-[#00e5ff] animate-pulse" />
@@ -168,10 +163,7 @@ export default function QuantumGameHud({ backendInfo }) {
           </div>
         </div>
 
-        {/* Métricas Principales */}
         <div className="flex items-center space-x-4 text-sm font-mono">
-          
-          {/* Puntuación y Meta */}
           <div className="flex items-center space-x-2 bg-[#050b14] px-3 py-1.5 rounded-lg border border-cyan-900/50">
             <Trophy className="w-4 h-4 text-yellow-400" />
             <span className="text-slate-400">Puntos:</span>
@@ -179,14 +171,12 @@ export default function QuantumGameHud({ backendInfo }) {
             <span className="text-slate-500 text-xs">/ {gameState.target_score} Target</span>
           </div>
 
-          {/* Hundidas */}
           <div className="flex items-center space-x-2 bg-[#050b14] px-3 py-1.5 rounded-lg border border-cyan-900/50">
             <Flame className="w-4 h-4 text-red-400" />
             <span className="text-slate-400">Flotas:</span>
             <span className="text-white font-bold text-base">{gameState.ships_destroyed} / {gameState.total_ships}</span>
           </div>
 
-          {/* Coherencia */}
           <div className="flex items-center space-x-2 bg-[#050b14] px-3 py-1.5 rounded-lg border border-cyan-900/50">
             <Activity className="w-4 h-4 text-[#00e5ff]" />
             <span className="text-slate-400">Coherencia:</span>
@@ -216,7 +206,7 @@ export default function QuantumGameHud({ backendInfo }) {
       {/* Main Grid & Tactical Controls Section */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
-        {/* TABLERO DINÁMICO (6x6, 8x8, 12x12) */}
+        {/* TABLERO DINÁMICO CON REVELACIÓN PROGRESIVA DE ENLAZAMIENTOS */}
         <div className="lg:col-span-7 bg-[#0b1329]/60 border border-slate-800 rounded-xl p-5 relative overflow-hidden backdrop-blur-sm">
           
           <div className="flex items-center justify-between mb-4">
@@ -228,22 +218,21 @@ export default function QuantumGameHud({ backendInfo }) {
             </div>
 
             <div className="flex items-center space-x-4 text-xs font-mono">
-              <span className="flex items-center space-x-1 text-purple-400">
-                <span className="w-2.5 h-2.5 rounded-full bg-purple-500 animate-ping inline-block"></span>
+              <span className="flex items-center space-x-1 text-[#00e5ff]">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#00e5ff] animate-ping inline-block"></span>
                 <span>Superposición (50%)</span>
               </span>
-              <span className="flex items-center space-x-1 text-amber-400">
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span>
+              <span className="flex items-center space-x-1 text-[#ff3b5c]">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#ff3b5c] inline-block"></span>
                 <span>Herida (78%)</span>
               </span>
-              <span className="flex items-center space-x-1 text-cyan-400">
-                <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 inline-block"></span>
+              <span className="flex items-center space-x-1 text-[#38bdf8]">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#38bdf8] inline-block"></span>
                 <span>Revelada (100%)</span>
               </span>
             </div>
           </div>
 
-          {/* Grid Container con plantilla según columnas */}
           <div 
             ref={gridRef}
             className="relative grid gap-1.5 sm:gap-2"
@@ -251,13 +240,84 @@ export default function QuantumGameHud({ backendInfo }) {
               gridTemplateColumns: `repeat(${gameState.cols}, minmax(0, 1fr))`
             }}
           >
+            {/* SVG OVERLAY QUE SÓLO DIBUJA LÍNEAS PARA FLOTAS DESCUBIERTAS */}
+            <svg className="absolute inset-0 pointer-events-none w-full h-full z-20 overflow-visible">
+              <defs>
+                <filter id="glowCyan" x="-20%" y="-20%" width="140%" height="140%">
+                  <feGaussianBlur stdDeviation="3" result="blur" />
+                  <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                </filter>
+                <filter id="glowRed" x="-20%" y="-20%" width="140%" height="140%">
+                  <feGaussianBlur stdDeviation="4" result="blur" />
+                  <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                </filter>
+              </defs>
+
+              {/* Dibujar superposición SÓLO para flotas descubiertas */}
+              {gameState.fleets
+                .filter(f => f.status !== 'destroyed' && f.candidate_tiles.length === 2 && discoveredSet.has(f.id))
+                .map(f => {
+                  const c1 = gridCoords[f.candidate_tiles[0]];
+                  const c2 = gridCoords[f.candidate_tiles[1]];
+                  if (!c1 || !c2) return null;
+                  
+                  const isWounded = f.status === 'wounded';
+                  const strokeColor = isWounded ? "#ff3b5c" : "#00e5ff";
+                  const glowFilter = isWounded ? "url(#glowRed)" : "url(#glowCyan)";
+
+                  return (
+                    <g key={`pair_${f.id}`}>
+                      <line 
+                        x1={c1.x} y1={c1.y} 
+                        x2={c2.x} y2={c2.y} 
+                        stroke={strokeColor} 
+                        strokeWidth={isWounded ? "3" : "2.5"} 
+                        strokeDasharray={isWounded ? "6 3" : "8 4"} 
+                        filter={glowFilter}
+                        className="opacity-90 animate-pulse"
+                      />
+                      <circle cx={c1.x} cy={c1.y} r={isWounded ? "4" : "3.5"} fill={strokeColor} />
+                      <circle cx={c2.x} cy={c2.y} r={isWounded ? "4" : "3.5"} fill={strokeColor} />
+                    </g>
+                  );
+                })}
+
+              {/* Dibujar entrelazamiento CNOT SÓLO para flotas descubiertas */}
+              {gameState.entangled_pairs.map((pair, idx) => {
+                const fA = gameState.fleets.find(f => f.id === pair.fleet_a);
+                const fB = gameState.fleets.find(f => f.id === pair.fleet_b);
+                if (!fA || !fB || fA.status === 'destroyed' || fB.status === 'destroyed') return null;
+                if (!discoveredSet.has(fA.id) && !discoveredSet.has(fB.id)) return null;
+
+                const tileA = fA.candidate_tiles[0];
+                const tileB = fB.candidate_tiles[0];
+                const cA = gridCoords[tileA];
+                const cB = gridCoords[tileB];
+                if (!cA || !cB) return null;
+
+                return (
+                  <g key={`entangle_${idx}`}>
+                    <line 
+                      x1={cA.x} y1={cA.y} 
+                      x2={cB.x} y2={cB.y} 
+                      stroke="#f59e0b" 
+                      strokeWidth="2" 
+                      strokeDasharray="2 4" 
+                      className="opacity-80 animate-ping"
+                    />
+                  </g>
+                );
+              })}
+            </svg>
+
             {gameState.cells.map((cell) => {
               const isSelected = cell.id === selectedCellId;
               const isWater = cell.status === 'water';
               const isHit = cell.status === 'hit';
 
+              // Buscar flotas asociadas a esta casilla que YA HAYA SIDO DESCUBIERTAS
               const candidateFleets = gameState.fleets.filter(
-                f => f.status !== 'destroyed' && f.candidate_tiles.includes(cell.id)
+                f => f.status !== 'destroyed' && f.candidate_tiles.includes(cell.id) && discoveredSet.has(f.id)
               );
 
               const hasSuperposition = candidateFleets.some(f => f.status === 'superposition');
@@ -271,13 +331,13 @@ export default function QuantumGameHud({ backendInfo }) {
                   onClick={() => setSelectedCellId(cell.id)}
                   disabled={isWater || isHit || loadingAction}
                   className={`
-                    aspect-square rounded-md sm:rounded-lg border p-0.5 sm:p-1 flex flex-col items-center justify-between relative transition-all duration-200 font-mono text-[10px] sm:text-xs
-                    ${isSelected ? 'ring-2 ring-[#00e5ff] ring-offset-1 ring-offset-[#070a0f] z-10' : ''}
+                    aspect-square rounded-md sm:rounded-lg border p-0.5 sm:p-1 flex flex-col items-center justify-between relative transition-all duration-200 font-mono text-[10px] sm:text-xs z-10
+                    ${isSelected ? 'ring-2 ring-[#00e5ff] ring-offset-1 ring-offset-[#070a0f] !z-30' : ''}
                     ${isHit ? 'bg-red-950/80 border-red-500 text-red-300' : ''}
                     ${isWater ? 'bg-blue-950/40 border-blue-900/60 text-blue-400 opacity-60 cursor-not-allowed' : ''}
-                    ${!isHit && !isWater && hasRevealed ? 'bg-cyan-950/70 border-cyan-400 text-cyan-200 shadow-[0_0_15px_rgba(0,229,255,0.3)] animate-pulse' : ''}
-                    ${!isHit && !isWater && !hasRevealed && hasWounded ? 'bg-amber-950/60 border-amber-500/80 text-amber-200 shadow-[0_0_12px_rgba(245,158,11,0.25)]' : ''}
-                    ${!isHit && !isWater && !hasRevealed && !hasWounded && hasSuperposition ? 'bg-purple-950/40 border-purple-600/70 text-purple-200 hover:bg-purple-900/50' : ''}
+                    ${!isHit && !isWater && hasRevealed ? 'bg-cyan-950/80 border-cyan-400 text-cyan-200 shadow-[0_0_18px_rgba(0,229,255,0.4)] animate-pulse' : ''}
+                    ${!isHit && !isWater && !hasRevealed && hasWounded ? 'bg-rose-950/80 border-red-500/90 text-rose-200 shadow-[0_0_15px_rgba(255,59,92,0.35)]' : ''}
+                    ${!isHit && !isWater && !hasRevealed && !hasWounded && hasSuperposition ? 'bg-cyan-950/30 border-cyan-600/70 text-cyan-200 hover:bg-cyan-900/40' : ''}
                     ${!isHit && !isWater && candidateFleets.length === 0 ? 'bg-[#060c18] border-slate-800/80 text-slate-500 hover:border-slate-700 hover:bg-slate-900/40' : ''}
                   `}
                 >
@@ -290,11 +350,11 @@ export default function QuantumGameHud({ backendInfo }) {
                       <Eye className="w-4 h-4 sm:w-5 sm:h-5 text-cyan-400 animate-bounce" />
                     )}
                     {!isHit && !isWater && !hasRevealed && hasWounded && (
-                      <Flame className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 animate-pulse" />
+                      <Flame className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#ff3b5c] animate-pulse" />
                     )}
                     {!isHit && !isWater && !hasRevealed && !hasWounded && hasSuperposition && (
                       <div className="relative flex items-center justify-center">
-                        <Atom className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-400 animate-spin" />
+                        <Atom className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#00e5ff] animate-spin" />
                       </div>
                     )}
                   </div>
@@ -302,30 +362,6 @@ export default function QuantumGameHud({ backendInfo }) {
               );
             })}
           </div>
-
-          {/* SVG Overlay para conectar casillas de superposición */}
-          <svg className="absolute inset-0 pointer-events-none w-full h-full">
-            {gameState.fleets
-              .filter(f => f.status !== 'destroyed' && f.candidate_tiles.length === 2)
-              .map(f => {
-                const c1 = gridCoords[f.candidate_tiles[0]];
-                const c2 = gridCoords[f.candidate_tiles[1]];
-                if (!c1 || !c2) return null;
-                const isWounded = f.status === 'wounded';
-                return (
-                  <g key={`pair_${f.id}`}>
-                    <line 
-                      x1={c1.x} y1={c1.y} 
-                      x2={c2.x} y2={c2.y} 
-                      stroke={isWounded ? "#f59e0b" : "#a855f7"} 
-                      strokeWidth={isWounded ? "2" : "1.5"} 
-                      strokeDasharray="4 4" 
-                      className="opacity-70 animate-pulse"
-                    />
-                  </g>
-                );
-              })}
-          </svg>
 
         </div>
 
@@ -346,16 +382,16 @@ export default function QuantumGameHud({ backendInfo }) {
               </span>
             </div>
 
-            {/* Informacion sobre casillas de la flota */}
-            {fleetsAtSelectedCell.length > 0 ? (
+            {/* Informacion sobre casillas de la flota descubierta */}
+            {fleetsAtSelectedCell.length > 0 && fleetsAtSelectedCell.some(f => discoveredSet.has(f.id)) ? (
               <div className="space-y-2">
-                {fleetsAtSelectedCell.map(fleet => (
+                {fleetsAtSelectedCell.filter(f => discoveredSet.has(f.id)).map(fleet => (
                   <div key={fleet.id} className="bg-[#050b14] border border-cyan-900/60 rounded-lg p-3 text-xs space-y-1">
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-white text-sm">{fleet.name}</span>
                       <span className={`px-2 py-0.5 rounded font-mono font-bold text-[11px] ${
                         fleet.status === 'revealed' ? 'bg-cyan-500 text-black' :
-                        fleet.status === 'wounded' ? 'bg-amber-500 text-black' : 'bg-purple-900/80 text-purple-200'
+                        fleet.status === 'wounded' ? 'bg-[#ff3b5c] text-white' : 'bg-cyan-950 text-cyan-200 border border-cyan-700'
                       }`}>
                         {fleet.status === 'revealed' ? '100% REVELADA' :
                          fleet.status === 'wounded' ? `HERIDA (${intPercent(fleet.prob_hit)})` : `SUPERPOSICIÓN (${intPercent(fleet.prob_hit)})`}
@@ -370,7 +406,7 @@ export default function QuantumGameHud({ backendInfo }) {
               </div>
             ) : (
               <p className="text-xs text-slate-400 italic bg-[#050b14] p-3 rounded-lg border border-slate-800">
-                Esta casilla no forma parte de ninguna pareja de superposición activa. Disparar aquí causará Agua y penalizará -{gameState.miss_penalty} Pts.
+                Casilla cubierta por la niebla de radar. Dispara para escanear la presencia cuántica de flotas o colapsar la superposición.
               </p>
             )}
 
@@ -387,7 +423,7 @@ export default function QuantumGameHud({ backendInfo }) {
               `}
             >
               <Crosshair className="w-5 h-5" />
-              <span>{loadingAction ? 'PROCESANDO QISKIT...' : `MEDIR CASILLA (${selectedCellId})`}</span>
+              <span>{loadingAction ? 'PROCESANDO QISKIT...' : `MEDIR / ESCANEAR CASILLA (${selectedCellId})`}</span>
             </button>
 
           </div>
@@ -400,29 +436,37 @@ export default function QuantumGameHud({ backendInfo }) {
             </h3>
 
             <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
-              {gameState.fleets.map(fleet => (
-                <div 
-                  key={fleet.id}
-                  className={`p-2.5 rounded-lg border transition text-xs space-y-1 ${
-                    fleet.status === 'destroyed' ? 'bg-red-950/30 border-red-900/40 opacity-50' :
-                    fleet.status === 'revealed' ? 'bg-cyan-950/40 border-cyan-500/70' :
-                    fleet.status === 'wounded' ? 'bg-amber-950/40 border-amber-500/70' : 'bg-[#050b14] border-slate-800'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-slate-100">{fleet.name}</span>
-                    <span className={`px-2 py-0.5 rounded-full font-mono text-[10px] font-bold ${
-                      fleet.status === 'destroyed' ? 'bg-red-900 text-red-200' :
-                      fleet.status === 'revealed' ? 'bg-cyan-500 text-black' :
-                      fleet.status === 'wounded' ? 'bg-amber-500 text-black' : 'bg-purple-900 text-purple-200'
-                    }`}>
-                      {fleet.status === 'destroyed' ? 'DERRIBADA |1⟩' :
-                       fleet.status === 'revealed' ? 'REVELADA (100%)' :
-                       fleet.status === 'wounded' ? 'HERIDA (78%)' : 'SUPERPOSICIÓN (50%)'}
-                    </span>
+              {gameState.fleets.map(fleet => {
+                const isDiscovered = discoveredSet.has(fleet.id);
+                return (
+                  <div 
+                    key={fleet.id}
+                    className={`p-2.5 rounded-lg border transition text-xs space-y-1 ${
+                      fleet.status === 'destroyed' ? 'bg-red-950/30 border-red-900/40 opacity-50' :
+                      !isDiscovered ? 'bg-[#050b14]/50 border-slate-900 text-slate-600' :
+                      fleet.status === 'revealed' ? 'bg-cyan-950/40 border-cyan-500/70' :
+                      fleet.status === 'wounded' ? 'bg-rose-950/50 border-rose-500/80' : 'bg-[#050b14] border-slate-800'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className={`font-bold ${isDiscovered ? 'text-slate-100' : 'text-slate-500 italic'}`}>
+                        {isDiscovered ? fleet.name : `[Flota Oculta #${fleet.id.replace('fleet_', '')}]`}
+                      </span>
+                      <span className={`px-2 py-0.5 rounded-full font-mono text-[10px] font-bold ${
+                        fleet.status === 'destroyed' ? 'bg-red-900 text-red-200' :
+                        !isDiscovered ? 'bg-slate-900 text-slate-500 border border-slate-800' :
+                        fleet.status === 'revealed' ? 'bg-cyan-500 text-black' :
+                        fleet.status === 'wounded' ? 'bg-[#ff3b5c] text-white' : 'bg-cyan-950 text-cyan-200 border border-cyan-700'
+                      }`}>
+                        {fleet.status === 'destroyed' ? 'DERRIBADA |1⟩' :
+                         !isDiscovered ? 'EN SIGILO' :
+                         fleet.status === 'revealed' ? 'REVELADA (100%)' :
+                         fleet.status === 'wounded' ? 'HERIDA (78%)' : 'SUPERPOSICIÓN (50%)'}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
@@ -500,7 +544,6 @@ export default function QuantumGameHud({ backendInfo }) {
               </p>
             </div>
 
-            {/* PISTA TÁCTICA DESTACADA */}
             <div className="bg-gradient-to-r from-red-950/60 via-purple-950/60 to-slate-900 border border-amber-500/60 rounded-xl p-4 text-left space-y-2">
               <div className="flex items-center space-x-2 text-amber-400 font-bold text-xs uppercase font-mono">
                 <Sparkles className="w-4 h-4" />

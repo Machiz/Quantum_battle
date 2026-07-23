@@ -6,10 +6,10 @@ import datetime
 
 class QiskitBattleEngine:
     """
-    Motor Cuántico para Batalla Naval Cuántica con Progresión de Niveles (v_final.md):
-    - Nivel 1: Grid 6x6, 3 Flotas, +200 pts/acierto, -40 fallo. Umbral mínimo: 450 Puntos.
-    - Nivel 2: Grid 8x8, 5 Flotas, +150 pts/acierto, -50 fallo. Umbral mínimo: 900 Puntos.
-    - Nivel 3: Grid 12x12, 7 Flotas, +100 pts/acierto, -60 fallo (Alta decoherencia).
+    Motor Cuántico para Batalla Naval Cuántica con Progresión y Niebla de Radar:
+    - Niebla de Radar Inicial: Todas las casillas se ven de color neutro idéntico al inicio.
+    - Revelación Dinámica: Al disparar a una casilla, se descubre la flota asociada,
+      colapsando su superposición o revelando sus entrelazamientos CNOT progresivamente.
     """
 
     FLEET_NAMES = [
@@ -25,8 +25,8 @@ class QiskitBattleEngine:
 
     HINTS_MAP = {
         1: "Pista Táctica: Para alcanzar los 450 pts mínimos requeridos en el Nivel 1, evita disparar a ciegas en casillas vacías. Enfócate en las casillas en Superposición (50%) para forzar el Colapso de Onda o activar Entrelazamiento CNOT y rematar Flotas Heridas (+250 pts).",
-        2: "Pista Táctica: En el tablero 8x8 con 5 flotas, los puntos por acierto bajan a 150 pts. Prioriza eliminar primero las flotas en estado HERIDA (78% prob) para acumular bonus extra y superar los 900 pts requeridos para avanzar.",
-        3: "Pista Táctica: En el tablero 12x12 con 7 flotas y penalización de 60 pts por fallo, cada tiro perdido destruye tu Coherencia. Rastra con precisión las parejas de superposición antes de medir."
+        2: "Pista Táctica: En el tablero 8x8 con 5 flotas, explora el tablero para descubrir la flota HERIDA inicial (78% prob). Atácala para asegurar impacto y sumar bonus.",
+        3: "Pista Táctica: En el tablero 12x12 con 7 flotas, identifica rápidamente las flotas HERIDAS (78% prob) marcadas con fuego 🔥 conforme descubres el espacio probabilístico."
     }
 
     def __init__(self, level=1):
@@ -55,6 +55,7 @@ class QiskitBattleEngine:
             self.wounded_hit_pts = 250
             self.miss_penalty = 40
             self.target_score = 450
+            self.initial_wounded_count = 0
         elif self.level_num == 2:
             self.level_name = "Nivel 2: Táctico (Grid 8x8 • 5 Flotas)"
             self.rows = 8
@@ -67,6 +68,7 @@ class QiskitBattleEngine:
             self.wounded_hit_pts = 180
             self.miss_penalty = 50
             self.target_score = 900
+            self.initial_wounded_count = 1
         else:
             self.level_num = 3
             self.level_name = "Nivel 3: Comandante (Grid 12x12 • 7 Flotas)"
@@ -80,6 +82,7 @@ class QiskitBattleEngine:
             self.wounded_hit_pts = 120
             self.miss_penalty = 60
             self.target_score = 1400
+            self.initial_wounded_count = 2
 
         self.turns = 0
         self.score = 0
@@ -88,8 +91,8 @@ class QiskitBattleEngine:
         self.event_log = []
         self.fleets = {}
         self.cells = {}
+        self.discovered_fleets = set()
 
-        # Inicializar matriz N x N
         for r in range(self.rows):
             row_label = chr(65 + r)
             for c in range(self.cols):
@@ -102,11 +105,10 @@ class QiskitBattleEngine:
                     'candidate_fleets': []
                 }
 
-        # Generar flotas en superposición
         self._generate_fleets()
         self._setup_entanglements()
 
-        self.add_event(f"🎮 Misión Iniciada - {self.level_name}. Puntaje Objetivo: {self.target_score} Pts.")
+        self.add_event(f"🎮 Misión Iniciada - {self.level_name}. Radar inicializado en modo sigilo.")
         return self.get_full_state()
 
     def _generate_fleets(self):
@@ -137,16 +139,23 @@ class QiskitBattleEngine:
 
             secret_real_tile = random.choice(candidates)
 
-            theta = np.pi / 2
+            is_initial_wounded = (i < self.initial_wounded_count)
+            if is_initial_wounded:
+                theta = 0.72 * np.pi
+                status = 'wounded'
+                prob_hit = 0.78
+            else:
+                theta = np.pi / 2
+                status = 'superposition'
+                prob_hit = 0.50
+
             qc = QuantumCircuit(1)
             qc.ry(theta, 0)
-            sv = Statevector.from_instruction(qc)
-            prob_hit = float(abs(sv.data[1])**2)
 
             self.fleets[fleet_id] = {
                 'id': fleet_id,
                 'name': fleet_name,
-                'status': 'superposition',
+                'status': status,
                 'candidate_tiles': candidates,
                 'secret_real_tile': secret_real_tile,
                 'prob_hit': round(prob_hit, 2),
@@ -207,6 +216,9 @@ class QiskitBattleEngine:
                 'state': self.get_full_state()
             }
 
+        # Marcar flota como descubierta por la acción del jugador
+        self.discovered_fleets.add(target_fleet['id'])
+
         theta = target_fleet['circuit_theta']
         qc = QuantumCircuit(1)
         qc.ry(theta, 0)
@@ -218,7 +230,6 @@ class QiskitBattleEngine:
         measured_state_1 = is_real_location and (roll <= prob_hit)
 
         if measured_state_1:
-            # === IMPACTO ===
             was_wounded = (target_fleet['status'] == 'wounded')
             target_fleet['status'] = 'destroyed'
             target_fleet['prob_hit'] = 1.0
@@ -229,22 +240,21 @@ class QiskitBattleEngine:
             self.score += pts_gained
             self.add_event(f"💥 ¡IMPACTO DIRECTO en {cell_id}! {target_fleet['name']} colapsó a Derribada |1⟩. [+{pts_gained} pts]")
 
-            # CNOT Propagation
+            # CNOT Propagation -> Desencadena entrelazamiento y descubre la flota pareja
             partner_id = target_fleet['entangled_with']
             if partner_id and self.fleets[partner_id]['status'] != 'destroyed':
                 partner = self.fleets[partner_id]
+                self.discovered_fleets.add(partner['id'])
 
                 new_theta = 0.72 * np.pi
                 qc_partner = QuantumCircuit(1)
                 qc_partner.ry(new_theta, 0)
-                sv_p = Statevector.from_instruction(qc_partner)
-                new_p_hit = float(abs(sv_p.data[1])**2)
 
                 partner['status'] = 'wounded'
-                partner['prob_hit'] = round(new_p_hit, 2)
+                partner['prob_hit'] = 0.78
                 partner['circuit_theta'] = new_theta
 
-                self.add_event(f"⚡ ENTLEZAMIENTO CNOT: El colapso de {target_fleet['name']} provocó una rotación en {partner['name']}. ¡Flota entrelazada ahora está HERIDA (P={int(new_p_hit*100)}%)!")
+                self.add_event(f"⚡ ENTLEZAMIENTO CNOT REVELADO: El colapso de {target_fleet['name']} provocó una rotación en {partner['name']}. ¡Flota parejada descubierta e inspirada HERIDA (P=78%)!")
 
             return {
                 'success': True,
@@ -255,7 +265,6 @@ class QiskitBattleEngine:
             }
 
         else:
-            # === FALLO Y COLAPSO DE SUPERPOSICIÓN ===
             cell['status'] = 'water'
             self.score = max(0, self.score - self.miss_penalty)
             self.coherence = max(0.0, round(self.coherence - 3.5, 1))
@@ -342,5 +351,6 @@ class QiskitBattleEngine:
             'cells': list(self.cells.values()),
             'fleets': list(self.fleets.values()),
             'entangled_pairs': self.entangled_pairs,
+            'discovered_fleets': list(self.discovered_fleets),
             'event_log': self.event_log
         }

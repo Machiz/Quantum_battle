@@ -1,7 +1,7 @@
 /**
  * Cliente API y Simulador Cuántico Local (v_final.md)
- * Maneja los umbrales de puntuación por nivel (450 pts N1, 900 pts N2),
- * matrices crecientes (6x6 -> 8x8 -> 12x12), barcos (3 -> 5 -> 7) y puntos (+200 -> +150 -> +100).
+ * Niebla de Radar Inicial: Todas las casillas se ven uniformes al inicio.
+ * Revelación progresiva al medir casillas.
  */
 
 const API_BASE = 'http://localhost:8000';
@@ -19,8 +19,8 @@ const FLEET_NAMES = [
 
 const HINTS_MAP = {
   1: "Pista Táctica: Para alcanzar los 450 pts mínimos requeridos en el Nivel 1, evita disparar a ciegas en casillas vacías. Enfócate en las casillas en Superposición (50%) para forzar el Colapso de Onda o activar Entrelazamiento CNOT y rematar Flotas Heridas (+250 pts).",
-  2: "Pista Táctica: En el tablero 8x8 con 5 flotas, los puntos por acierto bajan a 150 pts. Prioriza eliminar primero las flotas en estado HERIDA (78% prob) para acumular bonus extra y superar los 900 pts requeridos para avanzar.",
-  3: "Pista Táctica: En el tablero 12x12 con 7 flotas y penalización de 60 pts por fallo, cada tiro perdido destruye tu Coherencia. Rastra con precisión las parejas de superposición antes de medir."
+  2: "Pista Táctica: En el tablero 8x8 con 5 flotas, explora el tablero para descubrir la flota HERIDA inicial (78% prob). Atácala para asegurar impacto y sumar bonus.",
+  3: "Pista Táctica: En el tablero 12x12 con 7 flotas, identifica rápidamente las flotas HERIDAS (78% prob) marcadas con fuego 🔥 conforme descubres el espacio probabilístico."
 };
 
 export async function checkBackendStatus() {
@@ -45,7 +45,6 @@ export async function fetchNewGame(level = '1', currentScore = 0) {
     });
     if (res.ok) {
       const data = await res.json();
-      // Si se pasa puntaje acumulado de niveles anteriores
       if (currentScore > 0 && data.state) {
         data.state.score = currentScore;
       }
@@ -89,6 +88,7 @@ export function createLocalQuantumState(level = '1', initialScore = 0) {
   let woundedHitPts = 250;
   let missPenalty = 40;
   let targetScore = 450;
+  let initialWoundedCount = 0;
 
   if (level === '2' || level === 'medium' || level === 2) {
     levelNum = 2;
@@ -103,6 +103,7 @@ export function createLocalQuantumState(level = '1', initialScore = 0) {
     woundedHitPts = 180;
     missPenalty = 50;
     targetScore = 900;
+    initialWoundedCount = 1;
   } else if (level === '3' || level === 'hard' || level === 3) {
     levelNum = 3;
     levelName = "Nivel 3: Comandante (Grid 12x12 • 7 Flotas)";
@@ -116,6 +117,7 @@ export function createLocalQuantumState(level = '1', initialScore = 0) {
     woundedHitPts = 120;
     missPenalty = 60;
     targetScore = 1400;
+    initialWoundedCount = 2;
   }
 
   const cells = {};
@@ -166,14 +168,19 @@ export function createLocalQuantumState(level = '1', initialScore = 0) {
 
     const secretRealTile = candidates[Math.floor(Math.random() * candidates.length)];
 
+    const isInitialWounded = (i < initialWoundedCount);
+    const status = isInitialWounded ? 'wounded' : 'superposition';
+    const probHit = isInitialWounded ? 0.78 : 0.50;
+    const theta = isInitialWounded ? (0.72 * Math.PI) : (Math.PI / 2);
+
     fleets[fleetId] = {
       id: fleetId,
       name: fleetName,
-      status: 'superposition',
+      status: status,
       candidate_tiles: candidates,
       secret_real_tile: secretRealTile,
-      prob_hit: 0.50,
-      circuit_theta: Math.PI / 2,
+      prob_hit: probHit,
+      circuit_theta: theta,
       entangled_with: null
     };
     fleetIds.push(fleetId);
@@ -229,6 +236,7 @@ export function createLocalQuantumState(level = '1', initialScore = 0) {
     cells: Object.values(cells),
     fleets: Object.values(fleets),
     entangled_pairs: entangledPairs,
+    discovered_fleets: [],
     event_log: eventLog
   };
 }
@@ -240,6 +248,7 @@ export function localMeasureCell(gameState, cellId) {
   const newCells = gameState.cells.map(c => ({ ...c }));
   const newFleets = gameState.fleets.map(f => ({ ...f, candidate_tiles: [...f.candidate_tiles] }));
   const cell = newCells.find(c => c.id === cellId);
+  const discoveredFleets = new Set(gameState.discovered_fleets || []);
 
   if (!cell || cell.status === 'water' || cell.status === 'hit') {
     return { success: false, message: 'Celda no válida o ya atacada' };
@@ -277,11 +286,14 @@ export function localMeasureCell(gameState, cellId) {
         passed_score: passedScore,
         passed_game: allDestroyed && passedScore,
         failed_game: (allDestroyed && !passedScore) || (newCoherence <= 0),
+        discovered_fleets: Array.from(discoveredFleets),
         cells: newCells,
         event_log: newLog
       }
     };
   }
+
+  discoveredFleets.add(targetFleet.id);
 
   const isRealLocation = (cellId === targetFleet.secret_real_tile);
   const probHit = targetFleet.prob_hit;
@@ -303,6 +315,7 @@ export function localMeasureCell(gameState, cellId) {
       if (partner && partner.status !== 'destroyed') {
         partner.status = 'wounded';
         partner.prob_hit = 0.78;
+        discoveredFleets.add(partner.id);
         newLog.unshift({ time: now, text: `⚡ ENTLEZAMIENTO CNOT: El colapso de ${targetFleet.name} provocó una rotación en ${partner.name}. ¡Flota entrelazada ahora está HERIDA (P=78%)!` });
       }
     }
@@ -338,6 +351,7 @@ export function localMeasureCell(gameState, cellId) {
       passed_score: passedScore,
       passed_game: allDestroyed && passedScore,
       failed_game: (allDestroyed && !passedScore) || (newCoherence <= 0),
+      discovered_fleets: Array.from(discoveredFleets),
       cells: newCells,
       fleets: newFleets,
       event_log: newLog
